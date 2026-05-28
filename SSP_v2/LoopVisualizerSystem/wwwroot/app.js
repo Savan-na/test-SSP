@@ -1,7 +1,7 @@
 let pipelineSteps = [];
 let variableColorMap = {};
-// 标记当前系统是否处于成功运行的 Timeline 状态
 let isTimelineActive = false;
+let currentASTData = null;
 
 const BRIGHT_PALETTE = ["#ff7b72", "#3fb950", "#d29922", "#a5d6ff", "#f274c5", "#58a6ff", "#ffc600", "#e2a6ff"];
 
@@ -11,12 +11,10 @@ const consoleOutput = document.getElementById('console-output');
 const scopeGrid = document.getElementById('scope-grid');
 const explanationText = document.getElementById('explanation-text');
 const stepCounter = document.getElementById('step-counter');
-
 const codeInput = document.getElementById('code-input');
 const codeViewer = document.getElementById('code-viewer');
 const gutterZone = document.getElementById('gutter-zone');
 
-// ⭐ 核心渲染逻辑：把学生的文本拆成行，动态同步到行号带和渲染层
 function syncEditorRendering(highlightLineNum = -1) {
     const text = codeInput.value;
     const lines = text.split('\n');
@@ -27,7 +25,6 @@ function syncEditorRendering(highlightLineNum = -1) {
     lines.forEach((lineText, index) => {
         const lineNum = index + 1;
         
-        // 1. 同步生成左侧灰色行号
         const gutterNum = document.createElement('div');
         gutterNum.className = 'gutter-num';
         gutterNum.id = `gutter-num-${lineNum}`;
@@ -37,7 +34,6 @@ function syncEditorRendering(highlightLineNum = -1) {
         }
         gutterZone.appendChild(gutterNum);
         
-        // 2. 同步生成底层的渲染行
         const row = document.createElement('div');
         row.className = 'render-line-row';
         row.id = `render-row-${lineNum}`;
@@ -45,34 +41,85 @@ function syncEditorRendering(highlightLineNum = -1) {
             row.classList.add('active-row');
         }
         
-        // ⭐ 核心逻辑分支：如果编译成功激活了时间轴，则对关键变量进行着色渲染
         if (isTimelineActive && Object.keys(variableColorMap).length > 0) {
             let escapeHtml = lineText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            
-            // 利用单词边界（Word Boundary）正则，精准捕捉并染色代码中的特定变量名
             for (const [varName, color] of Object.entries(variableColorMap)) {
                 const regex = new RegExp(`\\b${varName}\\b`, 'g');
                 escapeHtml = escapeHtml.replace(regex, `<span style="color: ${color}; font-weight: bold;">${varName}</span>`);
             }
             row.innerHTML = escapeHtml === '' ? ' ' : escapeHtml;
         } else {
-            // 如果没编译或编译失败，显示无变色的纯净普通文本
             row.textContent = lineText === '' ? ' ' : lineText;
         }
-        
         codeViewer.appendChild(row);
     });
 }
 
-// 监听键盘的任意输入（支持键盘上所有按键、删除、复制粘贴和回车）
+// ⭐ 核心重构：D3 看板防出界微调引擎
+function renderASTTree(treeData, activeLineNum = -1) {
+    const stage = document.getElementById('ast-stage');
+    stage.innerHTML = ''; 
+
+    if (!treeData) return;
+
+    const width = stage.clientWidth;
+    const height = stage.clientHeight;
+
+    // 将基础平移（translate）的 X 轴向右拉伸到 120 像素，为左侧预留足够身位
+    const svg = d3.select("#ast-stage")
+                  .append("svg")
+                  .attr("width", width)
+                  .attr("height", height)
+                  .append("g")
+                  .attr("transform", "translate(120,0)");
+
+    const root = d3.hierarchy(treeData);
+    
+    // ⭐ 防出界精髓：将树的可用最大宽度收缩为 width - 280，强行把最右侧节点往左挤，绝不出界
+    const treeLayout = d3.tree().size([height - 40, width - 280]);
+    treeLayout(root);
+
+    svg.selectAll(".link")
+       .data(root.links())
+       .enter()
+       .append("path")
+       .attr("class", "link")
+       .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x))
+       .style("stroke", d => (d.target.data.line === activeLineNum) ? "#58a6ff" : "#30363d")
+       .style("stroke-width", d => (d.target.data.line === activeLineNum) ? "2.5px" : "1.5px")
+       .style("transition", "all 0.15s ease");
+
+    const node = svg.selectAll(".node")
+                    .data(root.descendants())
+                    .enter()
+                    .append("g")
+                    .attr("class", "node")
+                    .attr("transform", d => `translate(${d.y},${d.x})`);
+
+    node.append("circle")
+        .attr("r", d => (d.data.line === activeLineNum) ? 9 : 6) 
+        .attr("stroke", d => (d.data.line === activeLineNum) ? "#ffffff" : (d.data.color || "#58a6ff")) 
+        .style("fill", d => (d.data.line === activeLineNum) ? "#58a6ff" : "#21262d") 
+        .style("filter", d => (d.data.line === activeLineNum) ? "drop-shadow(0px 0px 6px #58a6ff)" : "none") 
+        .style("transition", "all 0.15s ease");
+
+    node.append("text")
+        .attr("dy", ".35em")
+        .attr("x", d => d.children ? -14 : 14)
+        .style("text-anchor", d => d.children ? "end" : "start")
+        .style("fill", d => (d.data.line === activeLineNum) ? "#ffffff" : "#c9d1d9")
+        .style("font-weight", d => (d.data.line === activeLineNum) ? "bold" : "normal")
+        .text(d => d.data.name);
+}
+
 codeInput.addEventListener('input', () => {
-    // 只要代码发生改动，立刻自动退出高亮变色状态，变成可正常编辑的普通代码状态
     isTimelineActive = false;
     variableColorMap = {};
+    currentASTData = null;
     syncEditorRendering();
+    document.getElementById('ast-stage').innerHTML = '';
 });
 
-// 同步滚动条：确保 textarea 产生横向或纵向滚动时，底层的渲染层和左侧的行号跟着毫米级对齐
 codeInput.addEventListener('scroll', () => {
     codeViewer.scrollTop = codeInput.scrollTop;
     codeViewer.scrollLeft = codeInput.scrollLeft;
@@ -107,15 +154,16 @@ btnRun.addEventListener('click', async () => {
 
         if (!response.ok) throw new Error("Backend infrastructure execution alert.");
 
-        pipelineSteps = await response.json();
+        const payload = await response.json();
+        pipelineSteps = payload.steps || [];
         
-        if (!pipelineSteps || pipelineSteps.length === 0) {
+        if (pipelineSteps.length === 0) {
             throw new Error("No trace telemetry returned.");
         }
 
-        // ⭐ 编译成功：激活色彩映射，允许左侧关键变量进行颜色突变高亮
         isTimelineActive = true;
         initializeVariableColors(pipelineSteps);
+        currentASTData = payload.astTree;
 
         slider.max = pipelineSteps.length - 1;
         slider.value = 0;
@@ -123,11 +171,12 @@ btnRun.addEventListener('click', async () => {
         
         renderFrame(0);
     } catch (err) {
-        // ⭐ 编译失败：保持代码原本的状态，绝不改变任何变量的颜色
         isTimelineActive = false;
         variableColorMap = {};
+        currentASTData = null;
         syncEditorRendering();
-        consoleOutput.innerHTML = `<span style="color: #f85149;">Compilation Core Error: ${err.message}</span>`;
+        document.getElementById('ast-stage').innerHTML = '';
+        consoleOutput.innerHTML = `<div class="console-row" style="color: #f85149;">Compilation Core Error: ${err.message}</div>`;
     } finally {
         btnRun.textContent = "Compile & Trace";
         btnRun.disabled = false;
@@ -143,27 +192,36 @@ function renderFrame(index) {
     
     const frame = pipelineSteps[index];
 
-    // 1. 渲染控制台标准输出
-    consoleOutput.innerHTML = frame.stdout ? frame.stdout : `>>> Iterator matrix allocated. Running tracking metrics...`;
-    if (frame.error) {
-        consoleOutput.innerHTML += `<br><span style="color: #f85149; font-weight: bold; font-family: monospace;">\n\n[Runtime Crash Log]:\n>>> ${frame.error}</span>`;
+    // 1. ⭐ 优化控制台物理换行：将流文本按行包装，提供舒适的空白间隔
+    if (frame.stdout) {
+        const stdoutLines = frame.stdout.trim().split('\n');
+        consoleOutput.innerHTML = stdoutLines.map(l => `<div class="console-row">${l}</div>`).join('');
+    } else {
+        consoleOutput.innerHTML = `<div class="console-row" style="color: #8b949e;">>>> Iterator matrix allocated. Running tracking metrics...</div>`;
     }
     
-    // 2. 渲染解说词并同步上色
+    if (frame.error) {
+        consoleOutput.innerHTML += `<div class="console-row" style="color: #f85149; font-weight: bold;">[Runtime Crash Log]: ${frame.error}</div>`;
+    }
+    
+    // 2. 渲染解说词
     let processedExplanation = frame.explanation || "";
     for (const [varName, color] of Object.entries(variableColorMap)) {
-        const regex = new RegExp(`\`${varName}\``, 'g');
+        const regex = new RegExp(`\\b${varName}\\b`, 'g');
         processedExplanation = processedExplanation.replace(regex, `<code style="color: ${color}; background: rgba(255,255,255,0.05); padding: 2px 4px; border-radius:3px;">${varName}</code>`);
     }
     explanationText.innerHTML = processedExplanation;
     
     // 3. 步数指示器更新
     stepCounter.textContent = `Steps: ${index + 1} / ${pipelineSteps.length}`;
-
-    // 4. ⭐ 触发左侧联动：重绘行号与底层，并高亮当前的 frame.line
+    
     syncEditorRendering(frame.line);
 
-    // 5. 动态渲染右侧卡片
+    if (currentASTData) {
+        renderASTTree(currentASTData, frame.line);
+    }
+
+    // 4. 渲染卡片
     scopeGrid.innerHTML = '';
     const vars = frame.variables || {}; 
     
@@ -187,5 +245,4 @@ function hexToRgb(hex) {
     return `${(bigint >> 16) & 255}, ${(bigint >> 8) & 255}, ${bigint & 255}`;
 }
 
-// 页面首次加载，初始化普通代码状态的行号与排版
 syncEditorRendering();

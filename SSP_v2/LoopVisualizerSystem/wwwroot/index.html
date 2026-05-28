@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deterministic Python Loop Telemetry Board</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         body { background-color: #0d1117; color: #c9d1d9; padding: 24px; display: flex; justify-content: center; min-height: 100vh; }
@@ -14,31 +15,34 @@
         .panel { background: #0d1117; border-radius: 8px; border: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; }
         .panel-header { background: #21262d; padding: 12px 20px; font-size: 13px; color: #8b949e; border-bottom: 1px solid #30363d; font-weight: 500; }
         
-        /* ⭐ 核心新增：双层重叠微型编辑器容器 */
         .workspace-body { position: relative; width: 100%; height: 350px; background: #0d1117; display: flex; overflow: hidden; }
-        
-        /* 独立的行号固定隔离带 */
         .gutter-zone { width: 45px; height: 100%; background: #090d13; border-right: 1px solid #30363d; display: flex; flex-direction: column; padding: 20px 0; font-family: monospace; font-size: 14px; line-height: 1.6; color: #5c6370; text-align: right; padding-right: 12px; user-select: none; }
-        .gutter-num { height: 22.4px; } /* 严格对齐单行高度 */
+        .gutter-num { height: 22.4px; }
         .gutter-num.active-num { color: #58a6ff; font-weight: bold; }
-
         .editor-stage { position: relative; flex-grow: 1; height: 100%; }
 
-        /* 顶层输入层：完全透明，但保留光标，键盘上所有按键和鼠标滚动完美支持 */
         .code-editor { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; color: transparent; caret-color: #58a6ff; border: none; padding: 20px; font-family: monospace; font-size: 14px; line-height: 1.6; resize: none; outline: none; z-index: 3; white-space: pre; overflow-x: auto; }
-        
-        /* 底层渲染层：专门用来给变量上色和画高亮遮罩线 */
         .code-viewer-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 20px; font-family: monospace; font-size: 14px; line-height: 1.6; z-index: 1; pointer-events: none; white-space: pre; overflow: hidden; }
         .render-line-row { height: 22.4px; width: 100%; border-radius: 3px; transition: background 0.1s; color: #79c0ff; }
         .render-line-row.active-row { background: rgba(56, 139, 253, 0.15); }
 
-        .console-container { padding: 20px; font-family: monospace; font-size: 13px; background: #090d13; min-height: 200px; max-height: 200px; overflow-y: auto; color: #e6edf3; }
+        /* ⭐ 优化控制台的行高与物理换行间隔，彻底告别拥挤 */
+        .console-container { padding: 20px; font-family: monospace; font-size: 13px; line-height: 1.8; background: #090d13; min-height: 200px; max-height: 200px; overflow-y: auto; color: #e6edf3; }
+        .console-row { margin-bottom: 6px; white-space: pre-wrap; word-break: break-all; }
+
         .scope-container { padding: 16px; background: #0d1117; border-top: 1px solid #30363d; min-height: 150px; }
         .scope-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 10px; }
         .variable-card { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 10px; font-size: 12px; font-family: monospace; }
         .variable-card .name { color: #ff7b72; font-weight: bold; }
         .variable-card .value { color: #a5d6ff; margin-left: 4px; }
-        .interactive-panel { background: #21262d; border-radius: 8px; padding: 20px; border: 1px solid #30363d; }
+        
+        .ast-panel { margin-top: 24px; background: #0d1117; border-radius: 8px; border: 1px solid #30363d; overflow: hidden; }
+        .ast-stage { width: 100%; height: 300px; background: #090d13; position: relative; }
+        .node circle { fill: #21262d; stroke-width: 2px; }
+        .node text { font-family: monospace; font-size: 12px; fill: #c9d1d9; }
+        .link { fill: none; stroke: #30363d; stroke-width: 1.5px; }
+
+        .interactive-panel { background: #21262d; border-radius: 8px; padding: 20px; border: 1px solid #30363d; margin-top: 24px; }
         .controls { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
         .btn { background: #238636; color: white; border: none; padding: 12px 28px; font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
         .btn:hover { background: #2ea043; }
@@ -61,7 +65,6 @@
             <div class="panel-header" id="editor-title">STUDENT WORKSPACE EDITOR</div>
             <div class="workspace-body">
                 <div class="gutter-zone" id="gutter-zone"></div>
-                
                 <div class="editor-stage">
                     <textarea class="code-editor" id="code-input" spellcheck="false" wrap="off">total_sum = 0
 multipliers = [1, 2, 3]
@@ -69,7 +72,6 @@ multipliers = [1, 2, 3]
 for factor in multipliers:
     result = factor * 10
     total_sum += result</textarea>
-                    
                     <div class="code-viewer-container" id="code-viewer"></div>
                 </div>
             </div>
@@ -84,6 +86,11 @@ for factor in multipliers:
                 <div class="scope-grid" id="scope-grid"></div>
             </div>
         </div>
+    </div>
+
+    <div class="ast-panel">
+        <div class="panel-header">ABSTRACT SYNTAX TREE (AST) COMPILER VISUALIZER</div>
+        <div class="ast-stage" id="ast-stage"></div>
     </div>
 
     <div class="interactive-panel">
