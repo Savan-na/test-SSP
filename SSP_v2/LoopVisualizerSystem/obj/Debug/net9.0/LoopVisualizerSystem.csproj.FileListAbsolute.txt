@@ -16,8 +16,6 @@ D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\rjimswa.dswa.ca
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\rjsmrazor.dswa.cache.json
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\rjsmcshtml.dswa.cache.json
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\scopedcss\bundle\LoopVisualizerSystem.styles.css
-D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\compressed\lz95sj91fw-7jvzojt8vh.gz
-D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\compressed\8qewn01zbz-2hh17odyle.gz
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\staticwebassets.build.json
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\staticwebassets.build.json.cache
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\staticwebassets.development.json
@@ -27,3 +25,5 @@ D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\refint\LoopVisu
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\LoopVisualizerSystem.pdb
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\LoopVisualizerSystem.genruntimeconfig.cache
 D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\ref\LoopVisualizerSystem.dll
+D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\compressed\lz95sj91fw-ty463tox5g.gz
+D:\Desktop\test-SSP\SSP_v2\LoopVisualizerSystem\obj\Debug\net9.0\compressed\8qewn01zbz-bzqryrjsvb.gz
