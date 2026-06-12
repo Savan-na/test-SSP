@@ -8,7 +8,7 @@
     "net9.0": []
   },
   "packageFolders": {
-    "C:\\Users\\ruiji\\.nuget\\packages\\": {},
+    "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
@@ -17,7 +17,7 @@
       "projectUniqueName": "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj",
       "projectName": "LoopVisualizerSystem",
       "projectPath": "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj",
-      "packagesPath": "C:\\Users\\ruiji\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
       "outputPath": "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
