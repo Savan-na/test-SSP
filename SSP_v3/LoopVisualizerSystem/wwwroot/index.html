@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deterministic Python Loop Telemetry Board</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        body { background-color: #0d1117; color: #c9d1d9; padding: 24px; display: flex; justify-content: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 1300px; background: #161b22; border-radius: 12px; padding: 32px; border: 1px solid #30363d; box-shadow: 0 24px 60px rgba(0,0,0,0.5); }
+        .header { text-align: center; margin-bottom: 24px; border-bottom: 1px solid #30363d; padding-bottom: 16px; }
+        .header h1 { font-size: 20px; color: #58a6ff; letter-spacing: 1px; }
+        .learning-panel { display: grid; gap: 12px; margin-bottom: 18px; }
+        .main-layout { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 24px; margin-bottom: 18px; align-items: start; }
+        .panel { background: #0d1117; border-radius: 8px; border: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { background: #21262d; padding: 12px 20px; font-size: 13px; color: #8b949e; border-bottom: 1px solid #30363d; font-weight: 500; }
+        
+        /* ⭐ 核心新增：双层重叠微型编辑器容器 */
+        .workspace-body { position: relative; width: 100%; height: 350px; background: #0d1117; display: flex; overflow: hidden; }
+        
+        /* 独立的行号固定隔离带 */
+        .gutter-zone { width: 45px; height: 100%; background: #090d13; border-right: 1px solid #30363d; display: flex; flex-direction: column; padding: 20px 0; font-family: monospace; font-size: 14px; line-height: 1.6; color: #5c6370; text-align: right; padding-right: 12px; user-select: none; }
+        .gutter-num { height: 22.4px; } /* 严格对齐单行高度 */
+        .gutter-num.active-num { color: #58a6ff; font-weight: bold; }
+
+        .editor-stage { position: relative; flex-grow: 1; height: 100%; }
+
+        /* 顶层输入层：完全透明，但保留光标，键盘上所有按键和鼠标滚动完美支持 */
+        .code-editor { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; color: transparent; caret-color: #58a6ff; border: none; padding: 20px; font-family: monospace; font-size: 14px; line-height: 1.6; resize: none; outline: none; z-index: 3; white-space: pre; overflow-x: auto; }
+        
+        /* 底层渲染层：专门用来给变量上色和画高亮遮罩线 */
+        .code-viewer-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 20px; font-family: monospace; font-size: 14px; line-height: 1.6; z-index: 1; pointer-events: none; white-space: pre; overflow: hidden; }
+        .render-line-row { height: 22.4px; width: 100%; border-radius: 3px; transition: background 0.1s; color: #79c0ff; }
+        .render-line-row.active-row { background: rgba(56, 139, 253, 0.15); }
+
+        .console-container { padding: 20px; font-family: monospace; font-size: 13px; background: #090d13; min-height: 300px; overflow-y: auto; color: #e6edf3; }
+        .console-row { margin-bottom: 6px; white-space: pre-wrap; word-break: break-word; }
+        .console-row.muted { color: #8b949e; font-style: italic; }
+        .console-row.error { color: #f85149; font-weight: 700; margin-top: 8px; }
+        .console-row.error-detail { color: #ffb4ae; margin-bottom: 8px; }
+        .console-row.trace-head { color: #58a6ff; font-weight: 700; }
+        .console-row.trace-line { color: #e6edf3; }
+        .console-row.trace-meta { color: #a5d6ff; }
+        .console-row.trace-change { color: #d29922; }
+        .console-row.trace-output-label { color: #8b949e; border-top: 1px solid #30363d; margin-top: 10px; padding-top: 8px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.4px; }
+        .console-row.trace-explanation { color: #c9d1d9; line-height: 1.55; }
+        .console-row.trace-explanation code { background: rgba(255,255,255,0.05); padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+        .scope-container { padding: 16px; background: #0d1117; border-top: 1px solid #30363d; min-height: 150px; }
+        .scope-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 10px; }
+        .variable-card { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 10px; font-size: 12px; font-family: monospace; }
+        .variable-card .name { color: #ff7b72; font-weight: bold; }
+        .variable-card .value { color: #a5d6ff; margin-left: 4px; }
+        .controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .workflow-row { display: grid; grid-template-columns: minmax(170px, 0.9fr) minmax(220px, 1.15fr) auto auto minmax(240px, 1fr) auto; gap: 12px; align-items: end; }
+        .flow-field { display: grid; gap: 6px; min-width: 0; }
+        .flow-field select { width: 100%; }
+        .btn { background: #238636; color: white; border: none; padding: 12px 28px; font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        .btn:hover { background: #2ea043; }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .btn.goal-btn { background: #1f6feb; }
+        .btn.goal-btn:hover { background: #388bfd; }
+        .prediction-action { min-width: 120px; padding: 10px 16px; text-align: center; }
+        .secondary-btn { background: #30363d; color: #e6edf3; border: 1px solid #484f58; padding: 10px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; }
+        .secondary-btn:hover:not(:disabled) { background: #3a424d; }
+        .secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .example-select { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 10px 12px; font-size: 12px; min-width: 190px; outline: none; }
+        .slider-container { display: grid; gap: 7px; min-width: 0; }
+        .slider-control { display: flex; align-items: center; gap: 12px; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: #30363d; height: 6px; border-radius: 3px; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #58a6ff; cursor: pointer; }
+        .concept-panel { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+        .concept-chip { display: inline-flex; align-items: center; border: 1px solid #30363d; background: #0d1117; color: #a5d6ff; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 600; }
+        .concept-empty { color: #8b949e; font-size: 12px; font-style: italic; }
+        .field-label { color: #8b949e; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+        .prediction-panel { background: #0d1117; border-top: 1px solid #30363d; padding: 14px 16px; }
+        .prediction-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; color: #8b949e; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+        .prediction-row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(120px, 220px) auto auto; gap: 10px; align-items: center; }
+        .prediction-prompt { color: #e6edf3; font-size: 13px; }
+        .prediction-input { width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #ffffff; font-family: monospace; font-size: 13px; padding: 10px 12px; outline: none; }
+        .prediction-input:focus { border-color: #58a6ff; }
+        .prediction-feedback { margin-top: 10px; min-height: 18px; font-size: 12px; }
+        .prediction-feedback.good { color: #3fb950; font-weight: 700; }
+        .prediction-feedback.needs-work { color: #d29922; font-weight: 700; }
+        .prediction-feedback.muted { color: #8b949e; }
+        .lesson-panel, .teacher-panel { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
+        .lesson-panel { display: grid; gap: 12px; }
+        .lesson-header, .teacher-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #8b949e; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+        .lesson-controls, .teacher-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+        .lesson-select { background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 10px 12px; font-size: 12px; min-width: 220px; outline: none; }
+        .lesson-goal { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; }
+        .lesson-title { color: #ffffff; font-weight: 700; margin-bottom: 6px; }
+        .lesson-objective { color: #c9d1d9; font-size: 13px; margin-bottom: 6px; }
+        .lesson-concept { color: #a5d6ff; font-size: 12px; }
+        .lesson-status { margin-top: 10px; border-radius: 6px; padding: 10px; font-size: 12px; line-height: 1.6; }
+        .lesson-status.muted { color: #8b949e; background: rgba(255,255,255,0.03); }
+        .lesson-status.passed { color: #d8ffe1; background: rgba(63,185,80,0.12); border: 1px solid rgba(63,185,80,0.35); }
+        .lesson-status.failed { color: #ffe8b3; background: rgba(210,153,34,0.12); border: 1px solid rgba(210,153,34,0.35); }
+        .teacher-insights { display: grid; gap: 8px; }
+        .teacher-empty { color: #8b949e; font-size: 12px; font-style: italic; }
+        .teacher-insight { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px; display: grid; gap: 5px; font-size: 12px; }
+        .teacher-insight strong { color: #ffffff; }
+        .teacher-insight span { color: #c9d1d9; }
+        .teacher-insight small { color: #8b949e; }
+        .presentation-mode { padding: 12px; }
+        .presentation-mode .container { max-width: 1600px; padding: 24px; }
+        .presentation-mode .header h1 { font-size: 26px; }
+        .presentation-mode .workspace-body { height: 460px; }
+        .presentation-mode .teacher-panel { display: block; }
+        .presentation-mode .lesson-panel, .presentation-mode .prediction-panel { font-size: 16px; }
+        .guide-overlay { position: fixed; inset: 0; display: none; background: transparent; z-index: 20; pointer-events: none; }
+        .guide-overlay.visible { display: block; }
+        .guide-card { position: fixed; left: 24px; top: 24px; width: min(420px, calc(100vw - 28px)); background: #161b22; border: 1px solid #58a6ff; border-radius: 8px; box-shadow: 0 18px 52px rgba(0,0,0,0.58); padding: 18px; pointer-events: auto; }
+        .guide-card h2 { color: #ffffff; font-size: 18px; margin-bottom: 10px; }
+        .guide-card p { color: #c9d1d9; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+        .guide-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .guide-step { color: #8b949e; font-size: 12px; font-family: monospace; }
+        .guide-actions { display: flex; gap: 10px; }
+        .guide-focus { position: relative; outline: 2px solid #58a6ff; outline-offset: 4px; box-shadow: 0 0 0 6px rgba(88,166,255,0.12); z-index: 2; }
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .workflow-row { grid-template-columns: 1fr; align-items: stretch; }
+            .controls { align-items: stretch; flex-direction: column; }
+            .slider-container, .lesson-controls, .teacher-actions { width: 100%; }
+            .prediction-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Dynamic Programming Flow & Variable Tracker Dashboard</h1>
+    </div>
+
+    <div class="learning-panel">
+        <div class="lesson-panel">
+            <div class="workflow-row">
+                <div class="flow-field">
+                    <label class="field-label" for="lesson-select">Topic</label>
+                    <select class="lesson-select" id="lesson-select"></select>
+                </div>
+                <div class="flow-field">
+                    <label class="field-label" for="example-select">Practice Task</label>
+                    <select class="example-select" id="example-select">
+                        <option value="accumulator-main">Build the sum</option>
+                    </select>
+                </div>
+                <button class="btn" id="btn-run">Compile & Trace</button>
+                <button class="btn goal-btn" id="btn-check-lesson">Check Task Goal</button>
+                <div class="slider-container">
+                    <label class="field-label" for="trace-slider">Time-Travel Debugger</label>
+                    <div class="slider-control">
+                        <input type="range" id="trace-slider" min="0" max="0" value="0" disabled>
+                        <span style="font-size: 13px; color: #3fb950; font-family: monospace;" id="step-counter">0/0</span>
+                    </div>
+                </div>
+                <button class="secondary-btn" id="btn-open-guide">Guide</button>
+            </div>
+            <div class="lesson-goal" id="lesson-goal"></div>
+            <div id="lesson-status"></div>
+        </div>
+
+        <div class="concept-panel" id="concept-panel">
+            <div class="concept-empty">No concept tag for this step yet.</div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="panel">
+            <div class="panel-header" id="editor-title">STUDENT WORKSPACE EDITOR</div>
+            <div class="workspace-body">
+                <div class="gutter-zone" id="gutter-zone"></div>
+                
+                <div class="editor-stage">
+                    <textarea class="code-editor" id="code-input" spellcheck="false" wrap="off">total_sum = 0
+multipliers = [1, 2, 3]
+
+for factor in multipliers:
+    result = factor * 10
+    total_sum += result</textarea>
+                    
+                    <div class="code-viewer-container" id="code-viewer"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">REAL-TIME TELEMETRY CONSOLE</div>
+            <div class="console-container" id="console-output"></div>
+            
+            <div class="scope-container">
+                <div style="font-size: 12px; font-weight: 600; color: #8b949e;">VARIABLE STATE AFTER CURRENT LINE</div>
+                <div class="scope-grid" id="scope-grid"></div>
+            </div>
+
+            <div class="prediction-panel">
+                <div class="prediction-header">
+                    <span>Prediction Practice</span>
+                </div>
+                <div class="prediction-row">
+                    <div class="prediction-prompt" id="prediction-prompt">Run code, then guess a variable value.</div>
+                    <input class="prediction-input" id="prediction-input" type="text" autocomplete="off" placeholder="your guess">
+                    <button class="secondary-btn prediction-action" id="btn-check-prediction">Check Guess</button>
+                    <button class="secondary-btn prediction-action" id="btn-reveal-answer" disabled>Reveal</button>
+                </div>
+                <div class="prediction-feedback" id="prediction-feedback"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="teacher-panel">
+        <div class="teacher-header">
+            <span>Teacher Mode</span>
+            <button class="secondary-btn" id="btn-presentation-mode">Presentation Mode</button>
+        </div>
+        <div class="teacher-actions">
+            <button class="secondary-btn" id="btn-export-report">Export Student Activity</button>
+        </div>
+        <div class="teacher-insights" id="teacher-insights">
+            <div class="teacher-empty">No misunderstanding signal yet.</div>
+        </div>
+    </div>
+</div>
+
+<div class="guide-overlay" id="guide-overlay" aria-modal="true" role="dialog">
+    <div class="guide-card" id="guide-card">
+        <h2 id="guide-title">Welcome</h2>
+        <p id="guide-body">This short guide walks through one complete learning flow.</p>
+        <div class="guide-footer">
+            <span class="guide-step" id="guide-step">1 / 5</span>
+            <div class="guide-actions">
+                <button class="secondary-btn" id="btn-guide-skip">Skip</button>
+                <button class="secondary-btn" id="btn-guide-prev">Previous</button>
+                <button class="btn" id="btn-guide-next">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

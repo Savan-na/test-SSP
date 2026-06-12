@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj": {}
+    "D:\\Desktop\\test-SSP\\SSP_v3\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj": {}
   },
   "projects": {
-    "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj": {
+    "D:\\Desktop\\test-SSP\\SSP_v3\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj",
+        "projectUniqueName": "D:\\Desktop\\test-SSP\\SSP_v3\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj",
         "projectName": "LoopVisualizerSystem",
-        "projectPath": "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj",
+        "projectPath": "D:\\Desktop\\test-SSP\\SSP_v3\\LoopVisualizerSystem\\LoopVisualizerSystem.csproj",
         "packagesPath": "C:\\Users\\ruiji\\.nuget\\packages\\",
-        "outputPath": "D:\\Desktop\\test-SSP\\SSP_v2\\LoopVisualizerSystem\\obj\\",
+        "outputPath": "D:\\Desktop\\test-SSP\\SSP_v3\\LoopVisualizerSystem\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
