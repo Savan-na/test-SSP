@@ -4,7 +4,7 @@ let isTimelineActive = false;
 let currentFrameIndex = 0;
 let predictionTarget = null;
 let activeLessonId = "accumulator";
-let activeTaskId = "sum-three";
+let activeTaskId = "accumulator-s1-l0";
 let activeContentMode = "practice-task";
 let lastLessonResult = null;
 let predictionAttempts = [];
@@ -24,12 +24,26 @@ let activeWalkthroughMode = null;
 let walkthroughFeedback = null;
 let revealedMissionFixes = new Set();
 let blankDraftValues = {};
+let levelZeroAttemptCounts = {};
+let revealedLevelZeroAnswers = new Set();
 let pendingCompletedTopicId = null;
+let activeBankEditorTask = null;
+let activeReviewLabTaskId = "review-average-empty";
+let reviewLabLoadedTaskId = null;
+let reviewLabLastResult = null;
+let reviewLabRunning = false;
+let reviewLabSessionMessage = "";
+let reviewLabDraftTimer = null;
 
 const GUIDE_KEY = "ssp_first_run_guide_completed";
 const MISSION_PROGRESS_KEY = "ssp_v11_completed_levels";
 const SKILL_PROGRESS_KEY = "ssp_v11_skill_progress";
 const TOPIC_BATCH_KEY = "ssp_v11_topic_batches";
+const TEACHER_TASK_OVERRIDES_KEY = "ssp_v12_teacher_task_overrides";
+const REVIEW_LAB_RECORDS_KEY = "ssp_v1_review_lab_records";
+const REVIEW_LAB_PROGRESS_KEY = "ssp_v1_review_lab_progress";
+const REVIEW_LAB_DRAFTS_KEY = "ssp_v2_review_lab_drafts";
+const REVIEW_LAB_ACTIVE_KEY = "ssp_v2_review_lab_active_task";
 const BRIGHT_PALETTE = ["#ff7b72", "#3fb950", "#d29922", "#a5d6ff", "#f274c5", "#58a6ff", "#ffc600", "#e2a6ff"];
 const STUDENT_TOPIC_ORDER = ["assignment", "ifElse", "forLoop", "whileLoop", "listTraversal", "accumulator", "nestedLoop", "functionCall", "recursion", "complex"];
 const KNOWLEDGE_MAP_POINTS = [
@@ -58,6 +72,402 @@ const KNOWLEDGE_MAP_LINKS = [
     ["accumulator", "complex"],
     ["nestedLoop", "complex"],
     ["recursion", "complex"]
+];
+
+const REVIEW_LAB_TASKS = [
+    {
+        id: "review-average-empty",
+        title: "Average score with an empty list",
+        category: "Correctness and boundaries",
+        difficulty: "Starter",
+        requirement: "Implement average(scores). It must return the arithmetic mean for a non-empty list and return 0 for an empty list.",
+        constraints: ["Use the scores parameter; do not hard-code an answer.", "The same function must handle normal, single-item, and empty lists."],
+        aiCode: `def average(scores):
+    return sum(scores) / len(scores)`,
+        issueOptions: [
+            { id: "empty-division", label: "An empty list causes division by zero.", correct: true, feedback: "len([]) is 0, so the division raises ZeroDivisionError before a value can be returned." },
+            { id: "normal-result", label: "The formula gives the wrong result for every non-empty list.", correct: false, feedback: "sum(scores) / len(scores) is the correct arithmetic-mean formula when the list is non-empty." },
+            { id: "needs-loop", label: "Python requires a manual loop instead of sum().", correct: false, feedback: "sum() is an appropriate built-in here; the defect is the unhandled empty input." }
+        ],
+        testOptions: [
+            { id: "average-normal", label: "average([80, 90]) == 85.0", diagnostic: true },
+            { id: "average-empty", label: "average([]) == 0", diagnostic: true },
+            { id: "average-single", label: "average([72]) == 72.0", diagnostic: true },
+            { id: "average-text", label: "average(['80']) == 80", diagnostic: false }
+        ],
+        requiredTestIds: ["average-normal", "average-empty"],
+        allTests: [
+            { id: "average-normal", name: "Normal scores", expression: "average([80, 90])", expectedExpression: "85.0" },
+            { id: "average-empty", name: "Empty list boundary", expression: "average([])", expectedExpression: "0" },
+            { id: "average-single", name: "Single score", expression: "average([72])", expectedExpression: "72.0" },
+            { id: "average-additional", name: "Additional unseen scores", expression: "average([1, 2, 6])", expectedExpression: "3.0" }
+        ],
+        solution: `def average(scores):
+    if not scores:
+        return 0
+    return sum(scores) / len(scores)`,
+        reasonKeywords: ["empty", "zero", "boundary", "len"],
+        abilities: ["correctness", "boundaries", "testing", "diagnosis"]
+    },
+    {
+        id: "review-largest-negative",
+        title: "Largest value when every number is negative",
+        category: "Correctness and data assumptions",
+        difficulty: "Developing",
+        requirement: "Implement largest(numbers) for a non-empty list of integers. It must return the largest value even when every value is negative.",
+        constraints: ["The input is guaranteed to contain at least one integer.", "Do not assume that 0 appears in the input."],
+        aiCode: `def largest(numbers):
+    result = 0
+    for number in numbers:
+        if number > result:
+            result = number
+    return result`,
+        issueOptions: [
+            { id: "zero-assumption", label: "Starting result at 0 breaks all-negative inputs.", correct: true, feedback: "No negative number is greater than 0, so result incorrectly remains 0 even though 0 is not in the list." },
+            { id: "comparison-direction", label: "The comparison must use < instead of >.", correct: false, feedback: "Using > is correct when searching for the largest value." },
+            { id: "loop-skips-last", label: "A Python for loop skips the last list item.", correct: false, feedback: "A for loop visits every item in the list unless control flow explicitly stops it." }
+        ],
+        testOptions: [
+            { id: "largest-positive", label: "largest([3, 8, 2]) == 8", diagnostic: true },
+            { id: "largest-negative", label: "largest([-9, -2, -7]) == -2", diagnostic: true },
+            { id: "largest-single", label: "largest([-4]) == -4", diagnostic: true },
+            { id: "largest-empty", label: "largest([]) == 0", diagnostic: false }
+        ],
+        requiredTestIds: ["largest-positive", "largest-negative"],
+        allTests: [
+            { id: "largest-positive", name: "Positive values", expression: "largest([3, 8, 2])", expectedExpression: "8" },
+            { id: "largest-negative", name: "All-negative boundary", expression: "largest([-9, -2, -7])", expectedExpression: "-2" },
+            { id: "largest-single", name: "Single negative value", expression: "largest([-4])", expectedExpression: "-4" },
+            { id: "largest-additional", name: "Additional mixed values", expression: "largest([-5, 3, 3, 1])", expectedExpression: "3" }
+        ],
+        solution: `def largest(numbers):
+    result = numbers[0]
+    for number in numbers[1:]:
+        if number > result:
+            result = number
+    return result`,
+        reasonKeywords: ["negative", "zero", "first", "initial"],
+        abilities: ["correctness", "boundaries", "testing", "diagnosis"]
+    },
+    {
+        id: "review-discount-boundary",
+        title: "Discount at the exact threshold",
+        category: "Boundary logic",
+        difficulty: "Developing",
+        requirement: "Implement final_price(price). Prices of 100 or more receive a 10% discount; lower prices remain unchanged.",
+        constraints: ["The threshold value 100 is included in the discount rule.", "Return a numeric price."],
+        aiCode: `def final_price(price):
+    if price > 100:
+        return price * 0.9
+    return price`,
+        issueOptions: [
+            { id: "threshold-excluded", label: "The condition excludes the exact price 100.", correct: true, feedback: "The requirement says 100 or more, so the comparison must include equality." },
+            { id: "discount-rate", label: "Multiplying by 0.9 applies a 90% discount.", correct: false, feedback: "Keeping 90% of the price is the same as applying a 10% discount." },
+            { id: "else-required", label: "Python requires an else before the final return.", correct: false, feedback: "The early return is valid; execution reaches the final return only when the condition is false." }
+        ],
+        testOptions: [
+            { id: "discount-above", label: "final_price(120) == 108.0", diagnostic: true },
+            { id: "discount-boundary", label: "final_price(100) == 90.0", diagnostic: true },
+            { id: "discount-below", label: "final_price(99) == 99", diagnostic: true },
+            { id: "discount-string", label: "final_price('100') == 90", diagnostic: false }
+        ],
+        requiredTestIds: ["discount-boundary", "discount-below"],
+        allTests: [
+            { id: "discount-above", name: "Above threshold", expression: "final_price(120)", expectedExpression: "108.0" },
+            { id: "discount-boundary", name: "Exact threshold", expression: "final_price(100)", expectedExpression: "90.0" },
+            { id: "discount-below", name: "Below threshold", expression: "final_price(99)", expectedExpression: "99" },
+            { id: "discount-additional", name: "Additional large price", expression: "final_price(1000)", expectedExpression: "900.0" }
+        ],
+        solution: `def final_price(price):
+    if price >= 100:
+        return price * 0.9
+    return price`,
+        reasonKeywords: ["boundary", "100", "equal", ">="],
+        abilities: ["correctness", "boundaries", "testing", "diagnosis"]
+    },
+    {
+        id: "review-count-passing",
+        title: "Replace repeated checks with scalable logic",
+        category: "Maintainability and scalability",
+        difficulty: "Applied",
+        requirement: "Implement count_passing(scores). Count every score greater than or equal to 60 for a list of any length, including an empty list.",
+        constraints: ["The solution must work when the list length changes.", "Remove the repeated index-by-index checks by using iteration or an equivalent concise construct."],
+        aiCode: `def count_passing(scores):
+    count = 0
+    if scores[0] >= 60:
+        count += 1
+    if scores[1] >= 60:
+        count += 1
+    if scores[2] >= 60:
+        count += 1
+    return count`,
+        issueOptions: [
+            { id: "fixed-length", label: "The code assumes exactly three scores and fails or ignores data when the length changes.", correct: true, feedback: "Direct indexes 0, 1, and 2 raise IndexError for shorter lists and never inspect a fourth score." },
+            { id: "duplicated-logic", label: "The repeated condition should be expressed once with iteration.", correct: true, feedback: "One loop or comprehension makes the rule apply consistently to every item and is easier to change." },
+            { id: "threshold-wrong", label: "Passing must use > 60 rather than >= 60.", correct: false, feedback: "The requirement explicitly includes a score of 60." }
+        ],
+        testOptions: [
+            { id: "passing-three", label: "count_passing([50, 60, 90]) == 2", diagnostic: true },
+            { id: "passing-empty", label: "count_passing([]) == 0", diagnostic: true },
+            { id: "passing-four", label: "count_passing([60, 40, 70, 80]) == 3", diagnostic: true },
+            { id: "passing-fixed", label: "Only test lists containing exactly three scores", diagnostic: false }
+        ],
+        requiredTestIds: ["passing-empty", "passing-four"],
+        allTests: [
+            { id: "passing-three", name: "Three scores", expression: "count_passing([50, 60, 90])", expectedExpression: "2" },
+            { id: "passing-empty", name: "Empty list", expression: "count_passing([])", expectedExpression: "0" },
+            { id: "passing-four", name: "Longer list", expression: "count_passing([60, 40, 70, 80])", expectedExpression: "3" },
+            { id: "passing-additional", name: "Additional threshold score", expression: "count_passing([60])", expectedExpression: "1" }
+        ],
+        solution: `def count_passing(scores):
+    count = 0
+    for score in scores:
+        if score >= 60:
+            count += 1
+    return count`,
+        reasonKeywords: ["length", "loop", "repeat", "index", "scal"],
+        abilities: ["correctness", "boundaries", "testing", "maintainability", "diagnosis"]
+    },
+    {
+        id: "review-find-index",
+        title: "Repair a generated syntax and sentinel defect",
+        category: "Debugging and API contracts",
+        difficulty: "Challenge",
+        requirement: "Implement find_index(items, target). Return the first matching index, or -1 when the target does not occur.",
+        constraints: ["The first item has index 0, so 0 cannot also mean not found.", "Return the first match when a value appears more than once."],
+        aiCode: `def find_index(items, target)
+    for index, item in enumerate(items):
+        if item = target:
+            return index
+    return 0`,
+        issueOptions: [
+            { id: "missing-colon", label: "The function header is missing a colon.", correct: true, feedback: "A Python def statement must end with a colon before its indented body." },
+            { id: "assignment-condition", label: "The condition uses assignment syntax instead of equality comparison.", correct: true, feedback: "Python comparisons use ==. A single = is assignment syntax and is invalid in this condition." },
+            { id: "sentinel-zero", label: "Returning 0 for not found conflicts with a valid first-item index.", correct: true, feedback: "The contract requires -1 for no match; index 0 must remain available for a match in the first position." },
+            { id: "enumerate-invalid", label: "enumerate() cannot be used with a list.", correct: false, feedback: "enumerate(items) is the standard way to obtain both index and value while iterating." }
+        ],
+        testOptions: [
+            { id: "find-first", label: "find_index(['a', 'b'], 'a') == 0", diagnostic: true },
+            { id: "find-middle", label: "find_index(['a', 'b', 'c'], 'b') == 1", diagnostic: true },
+            { id: "find-missing", label: "find_index(['a', 'b'], 'x') == -1", diagnostic: true },
+            { id: "find-sorted", label: "Only test alphabetically sorted lists", diagnostic: false }
+        ],
+        requiredTestIds: ["find-first", "find-missing"],
+        allTests: [
+            { id: "find-first", name: "First item", expression: "find_index(['a', 'b'], 'a')", expectedExpression: "0" },
+            { id: "find-middle", name: "Middle item", expression: "find_index(['a', 'b', 'c'], 'b')", expectedExpression: "1" },
+            { id: "find-missing", name: "Missing target", expression: "find_index(['a', 'b'], 'x')", expectedExpression: "-1" },
+            { id: "find-duplicate", name: "First duplicate", expression: "find_index(['a', 'b', 'a'], 'a')", expectedExpression: "0" }
+        ],
+        solution: `def find_index(items, target):
+    for index, item in enumerate(items):
+        if item == target:
+            return index
+    return -1`,
+        reasonKeywords: ["syntax", "colon", "comparison", "-1", "index"],
+        abilities: ["correctness", "boundaries", "testing", "diagnosis", "maintainability"]
+    },
+    {
+        id: "review-shipping-tests",
+        title: "Reject an AI-written test with the wrong expectation",
+        category: "Test reliability",
+        difficulty: "Applied",
+        requirement: "Implement shipping_fee(total). Orders of 50 or more have free shipping; smaller orders cost 5. The included AI tests must agree with this contract.",
+        constraints: ["Review both the function and the assertions below it.", "A test is harmful when its expected value contradicts the requirement."],
+        aiCode: `def shipping_fee(total):
+    return 0 if total >= 50 else 5
+
+# AI-generated tests
+assert shipping_fee(60) == 0
+assert shipping_fee(49) == 0`,
+        issueOptions: [
+            { id: "shipping-wrong-expectation", label: "The assertion for total 49 expects free shipping, contrary to the requirement.", correct: true, feedback: "An order of 49 is below the threshold, so its expected fee must be 5 rather than 0." },
+            { id: "shipping-missing-boundary", label: "The AI tests omit the exact threshold value 50.", correct: true, feedback: "The condition uses an inclusive boundary. Testing 50 is the most direct way to detect an accidental > comparison." },
+            { id: "shipping-function-wrong", label: "The function must use total > 50 instead of total >= 50.", correct: false, feedback: "The words '50 or more' require >=, so the function's comparison is already correct." },
+            { id: "shipping-assert-invalid", label: "Python assert statements cannot call functions.", correct: false, feedback: "An assert may evaluate a function call; the problem is the incorrect expected value, not the syntax." }
+        ],
+        testOptions: [
+            { id: "shipping-above", label: "shipping_fee(60) == 0", diagnostic: true, feedback: "This confirms a clearly qualifying order receives free shipping." },
+            { id: "shipping-boundary", label: "shipping_fee(50) == 0", diagnostic: true, feedback: "This proves equality is included at the exact threshold." },
+            { id: "shipping-below", label: "shipping_fee(49) == 5", diagnostic: true, feedback: "This distinguishes the below-threshold branch from the free-shipping branch." },
+            { id: "shipping-negative", label: "shipping_fee(-10) raises ValueError", diagnostic: false, feedback: "The contract does not specify validation or an exception for negative totals, so this expected exception is unsupported." }
+        ],
+        requiredTestIds: ["shipping-boundary", "shipping-below"],
+        allTests: [
+            { id: "shipping-above", name: "Above threshold", expression: "shipping_fee(60)", expectedExpression: "0" },
+            { id: "shipping-boundary", name: "Exact threshold", expression: "shipping_fee(50)", expectedExpression: "0" },
+            { id: "shipping-below", name: "Below threshold", expression: "shipping_fee(49)", expectedExpression: "5" },
+            { id: "shipping-additional", name: "Additional small order", expression: "shipping_fee(1)", expectedExpression: "5" }
+        ],
+        solution: `def shipping_fee(total):
+    return 0 if total >= 50 else 5
+
+assert shipping_fee(60) == 0
+assert shipping_fee(50) == 0
+assert shipping_fee(49) == 5`,
+        reasonKeywords: ["test", "expect", "49", "boundary", "50"],
+        abilities: ["correctness", "boundaries", "testing", "diagnosis", "reliability"]
+    },
+    {
+        id: "review-unique-order",
+        title: "Preserve order while removing duplicates",
+        category: "Hidden logic defects",
+        difficulty: "Applied",
+        requirement: "Implement unique_in_order(items) for a list of strings. Remove later duplicates while preserving the first-occurrence order.",
+        constraints: ["The output order is part of the contract.", "Different correct implementations are acceptable if they preserve first occurrences."],
+        aiCode: `def unique_in_order(items):
+    return list(set(items))`,
+        issueOptions: [
+            { id: "unique-order-lost", label: "Converting through set does not express the required first-occurrence order.", correct: true, feedback: "A set represents membership, not the sequence in which values first appeared. The output can violate the order contract." },
+            { id: "unique-removes-duplicates", label: "Removing duplicate values is itself incorrect.", correct: false, feedback: "Removing later duplicates is required; only their first-occurrence order must be preserved." },
+            { id: "unique-list-invalid", label: "list() cannot convert a set back into a list.", correct: false, feedback: "list(set_value) is valid Python, but it does not guarantee the required semantic order." }
+        ],
+        testOptions: [
+            { id: "unique-ordered-duplicates", label: "unique_in_order(['b', 'a', 'b']) == ['b', 'a']", diagnostic: true, feedback: "This case proves both duplicate removal and preservation of the first-seen order." },
+            { id: "unique-no-duplicates", label: "unique_in_order(['a', 'b']) == ['a', 'b']", diagnostic: true, feedback: "This checks that an already unique sequence is not rearranged." },
+            { id: "unique-empty", label: "unique_in_order([]) == []", diagnostic: true, feedback: "This confirms the accumulation logic handles an empty sequence." },
+            { id: "unique-sorted", label: "unique_in_order(['b', 'a']) == ['a', 'b']", diagnostic: false, feedback: "Sorting contradicts the requirement to retain first-occurrence order." }
+        ],
+        requiredTestIds: ["unique-ordered-duplicates", "unique-no-duplicates"],
+        allTests: [
+            { id: "unique-ordered-duplicates", name: "Order with duplicates", expression: "unique_in_order(['b', 'a', 'b'])", expectedExpression: "['b', 'a']" },
+            { id: "unique-no-duplicates", name: "Already unique", expression: "unique_in_order(['a', 'b'])", expectedExpression: "['a', 'b']" },
+            { id: "unique-empty", name: "Empty list", expression: "unique_in_order([])", expectedExpression: "[]" },
+            { id: "unique-additional", name: "Additional repeated values", expression: "unique_in_order(['c', 'a', 'c', 'b', 'a'])", expectedExpression: "['c', 'a', 'b']" }
+        ],
+        sourceRule: "ordered-unique",
+        solution: `def unique_in_order(items):
+    seen = set()
+    result = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result`,
+        reasonKeywords: ["order", "first", "set", "duplicate"],
+        abilities: ["correctness", "testing", "diagnosis", "maintainability"]
+    },
+    {
+        id: "review-parse-age",
+        title: "Narrow exception handling without hiding defects",
+        category: "Reliability and error handling",
+        difficulty: "Challenge",
+        requirement: "Implement parse_age(text). Return the integer value for valid integer text and return None when conversion fails.",
+        constraints: ["The valid age 0 must remain distinguishable from invalid input.", "Catch the conversion error specifically instead of hiding unrelated programming errors."],
+        aiCode: `def parse_age(text):
+    try:
+        return int(text)
+    except Exception:
+        return 0`,
+        issueOptions: [
+            { id: "age-wrong-sentinel", label: "Returning 0 for invalid input conflicts with the valid value 0.", correct: true, feedback: "The requirement reserves None for conversion failure. Returning 0 makes invalid text indistinguishable from a real age of zero." },
+            { id: "age-broad-except", label: "Catching Exception is broader than the conversion failure being handled.", correct: true, feedback: "int(text) reports invalid conversion with ValueError. Catching unrelated exceptions can conceal defects that should remain visible." },
+            { id: "age-int-wrong", label: "The int() function cannot convert numeric text.", correct: false, feedback: "int('18') correctly returns 18; it is the appropriate conversion operation." },
+            { id: "age-try-unneeded", label: "Python does not permit return statements inside try blocks.", correct: false, feedback: "Returning from a try block is valid. The concerns are the broad exception and wrong failure value." }
+        ],
+        testOptions: [
+            { id: "age-valid", label: "parse_age('18') == 18", diagnostic: true, feedback: "This proves the normal conversion path." },
+            { id: "age-zero", label: "parse_age('0') == 0", diagnostic: true, feedback: "This protects the valid zero value from being confused with failure." },
+            { id: "age-invalid", label: "parse_age('unknown') is None", diagnostic: true, feedback: "This verifies the explicit failure contract." },
+            { id: "age-invalid-zero", label: "parse_age('unknown') == 0", diagnostic: false, feedback: "That expectation repeats the defect and cannot distinguish invalid text from valid zero." }
+        ],
+        requiredTestIds: ["age-zero", "age-invalid"],
+        allTests: [
+            { id: "age-valid", name: "Valid age", expression: "parse_age('18')", expectedExpression: "18" },
+            { id: "age-zero", name: "Valid zero", expression: "parse_age('0')", expectedExpression: "0" },
+            { id: "age-invalid", name: "Invalid text", expression: "parse_age('unknown')", expectedExpression: "None" },
+            { id: "age-additional", name: "Additional negative integer", expression: "parse_age('-2')", expectedExpression: "-2" }
+        ],
+        sourceRule: "targeted-value-error",
+        solution: `def parse_age(text):
+    try:
+        return int(text)
+    except ValueError:
+        return None`,
+        reasonKeywords: ["ValueError", "None", "zero", "exception"],
+        abilities: ["correctness", "testing", "diagnosis", "reliability", "maintainability"]
+    },
+    {
+        id: "review-duplicate-performance",
+        title: "Replace quadratic duplicate detection",
+        category: "Performance and resource use",
+        difficulty: "Challenge",
+        requirement: "Implement has_duplicate(items). Return whether any value repeats, and make the solution scale in one pass for large lists.",
+        constraints: ["A correct answer that still compares every pair does not meet the performance requirement.", "Use a set or another genuinely linear-time membership strategy."],
+        aiCode: `def has_duplicate(items):
+    for left in range(len(items)):
+        for right in range(left + 1, len(items)):
+            if items[left] == items[right]:
+                return True
+    return False`,
+        issueOptions: [
+            { id: "duplicate-quadratic", label: "The nested pair comparison performs quadratic work as the list grows.", correct: true, feedback: "For n items, the code may inspect roughly n squared pairs. A membership set can detect repetition in one traversal." },
+            { id: "duplicate-readable", label: "The index-based nested loops obscure the simple membership intent.", correct: true, feedback: "The implementation exposes pair mechanics rather than the rule 'have I seen this value before?', making maintenance harder." },
+            { id: "duplicate-result-wrong", label: "The function always returns False when a duplicate exists.", correct: false, feedback: "The current code is behaviorally correct for ordinary inputs; its problem is scalability and unnecessary complexity." },
+            { id: "duplicate-set-slower", label: "Set membership is always slower than comparing every pair.", correct: false, feedback: "Average set membership is constant time, enabling an average linear-time traversal." }
+        ],
+        testOptions: [
+            { id: "duplicate-present", label: "has_duplicate([1, 2, 1]) is True", diagnostic: true, feedback: "This checks the positive behavior." },
+            { id: "duplicate-absent", label: "has_duplicate([1, 2, 3]) is False", diagnostic: true, feedback: "This checks that unique input is not misclassified." },
+            { id: "duplicate-late", label: "has_duplicate(list(range(1000)) + [999]) is True", diagnostic: true, feedback: "A late duplicate exercises both correctness and the intended scalable strategy." },
+            { id: "duplicate-only-first", label: "Only test [1, 1] because performance cannot be reviewed", diagnostic: false, feedback: "A tiny happy-path test cannot provide evidence that the implementation meets the explicit scalability constraint." }
+        ],
+        requiredTestIds: ["duplicate-absent", "duplicate-late"],
+        allTests: [
+            { id: "duplicate-present", name: "Duplicate present", expression: "has_duplicate([1, 2, 1])", expectedExpression: "True" },
+            { id: "duplicate-absent", name: "Unique input", expression: "has_duplicate([1, 2, 3])", expectedExpression: "False" },
+            { id: "duplicate-late", name: "Late duplicate", expression: "has_duplicate(list(range(1000)) + [999])", expectedExpression: "True" },
+            { id: "duplicate-empty", name: "Empty input", expression: "has_duplicate([])", expectedExpression: "False" }
+        ],
+        sourceRule: "linear-duplicate",
+        solution: `def has_duplicate(items):
+    seen = set()
+    for item in items:
+        if item in seen:
+            return True
+        seen.add(item)
+    return False`,
+        reasonKeywords: ["set", "linear", "quadratic", "membership", "performance"],
+        abilities: ["correctness", "testing", "diagnosis", "maintainability", "efficiency"]
+    },
+    {
+        id: "review-chunk-tail",
+        title: "Keep the final partial chunk",
+        category: "Boundary and off-by-one review",
+        difficulty: "Challenge",
+        requirement: "Implement chunk(items, size) for a positive size. Return consecutive sublists and keep a final partial chunk when the length is not divisible by size.",
+        constraints: ["The last full chunk must not be dropped.", "A shorter final chunk is valid and must be returned."],
+        aiCode: `def chunk(items, size):
+    result = []
+    for start in range(0, len(items) - size, size):
+        result.append(items[start:start + size])
+    return result`,
+        issueOptions: [
+            { id: "chunk-stop-early", label: "The range stop value ends before the last full or partial chunk can start.", correct: true, feedback: "Chunk starts should continue while start is below len(items). Subtracting size shortens the traversal and drops valid data." },
+            { id: "chunk-slice-partial", label: "Python slicing cannot return a shorter final sublist.", correct: false, feedback: "A slice safely stops at the list end, which is exactly what makes the partial final chunk easy to preserve." },
+            { id: "chunk-append-wrong", label: "append() flattens the sublist instead of storing a chunk.", correct: false, feedback: "append(sublist) stores the sublist as one element; extend() would flatten it." }
+        ],
+        testOptions: [
+            { id: "chunk-exact", label: "chunk([1, 2, 3, 4], 2) == [[1, 2], [3, 4]]", diagnostic: true, feedback: "This catches an implementation that drops the last complete chunk." },
+            { id: "chunk-partial", label: "chunk([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]", diagnostic: true, feedback: "This directly proves that the tail is retained." },
+            { id: "chunk-empty", label: "chunk([], 3) == []", diagnostic: true, feedback: "This checks a natural boundary without inventing an error requirement." },
+            { id: "chunk-drop-tail", label: "chunk([1, 2, 3], 2) == [[1, 2]]", diagnostic: false, feedback: "That expected value contradicts the requirement to keep the final partial chunk." }
+        ],
+        requiredTestIds: ["chunk-exact", "chunk-partial"],
+        allTests: [
+            { id: "chunk-exact", name: "Exact division", expression: "chunk([1, 2, 3, 4], 2)", expectedExpression: "[[1, 2], [3, 4]]" },
+            { id: "chunk-partial", name: "Partial final chunk", expression: "chunk([1, 2, 3, 4, 5], 2)", expectedExpression: "[[1, 2], [3, 4], [5]]" },
+            { id: "chunk-empty", name: "Empty input", expression: "chunk([], 3)", expectedExpression: "[]" },
+            { id: "chunk-additional", name: "Chunk larger than input", expression: "chunk([1, 2], 5)", expectedExpression: "[[1, 2]]" }
+        ],
+        solution: `def chunk(items, size):
+    result = []
+    for start in range(0, len(items), size):
+        result.append(items[start:start + size])
+    return result`,
+        reasonKeywords: ["range", "stop", "partial", "slice", "tail"],
+        abilities: ["correctness", "boundaries", "testing", "diagnosis"]
+    }
 ];
 
 const LESSONS = {
@@ -2607,6 +3017,7 @@ const TASK_ENRICHMENTS = {
     }
 };
 
+const LEVEL_ZERO_STAGE_LABEL = "Choose code blocks";
 const LEVEL_STAGE_LABELS = [
     "Fill a key expression",
     "Write one complete line",
@@ -2614,6 +3025,43 @@ const LEVEL_STAGE_LABELS = [
     "Refine redundant code",
     "Fix broken code"
 ];
+
+function getLevelStageLabel(levelNumber) {
+    return Number(levelNumber) === 0
+        ? LEVEL_ZERO_STAGE_LABEL
+        : LEVEL_STAGE_LABELS[Number(levelNumber) - 1] || `Level ${levelNumber}`;
+}
+
+const QUESTION_SET_DIFFICULTY = [
+    { label: "Starter", className: "starter", note: "Short code, one core idea, minimal distractors." },
+    { label: "Growing", className: "growing", note: "Adds one more variable, branch, or longer sequence." },
+    { label: "Applied", className: "applied", note: "Requires tracking multiple state changes." },
+    { label: "Challenge", className: "challenge", note: "Longer code with more context and more chances for boundary mistakes." },
+    { label: "Capstone", className: "capstone", note: "Most realistic version in this bank: longer, noisier, and more diagnostic." }
+];
+
+function getDifficultyMeta(setOrder = 1, levelNumber = 0, task = null) {
+    const index = clamp((Number(setOrder) || 1) - 1, 0, QUESTION_SET_DIFFICULTY.length - 1);
+    const base = QUESTION_SET_DIFFICULTY[index];
+    const lineCount = countCodeLines(task?.starterCode || "");
+    const targetLines = Math.max(lineCount, 2 + index + Number(levelNumber || 0));
+    return {
+        order: index + 1,
+        label: base.label,
+        className: base.className,
+        note: base.note,
+        estimatedLines: lineCount,
+        targetLines,
+        complexityNote: `Set ${index + 1}: ${base.note} Current starter code has ${lineCount} non-empty line${lineCount === 1 ? "" : "s"}.`
+    };
+}
+
+function countCodeLines(code) {
+    return String(code || "")
+        .split("\n")
+        .filter(line => line.trim().length > 0)
+        .length;
+}
 
 const PYTHON_FUNCTION_HINTS = {
     range: {
@@ -3778,7 +4226,8 @@ function tagQuestionSet(tasks, setId, setTitle) {
         setId,
         setTitle,
         setOrder: Number(setId.replace("set-", "")) || 1,
-        levelOrder: getTaskLevelNumber(task, index)
+        levelOrder: getTaskLevelNumber(task, index),
+        difficulty: getDifficultyMeta(Number(setId.replace("set-", "")) || 1, getTaskLevelNumber(task, index), task)
     }));
 }
 
@@ -3866,6 +4315,366 @@ function buildPracticeTopicQuestionSets() {
     ]);
 
     return output;
+}
+
+function fillLevelZeroSolution(starterCode, blanks) {
+    return blanks.reduce((code, blank) => code.split(blank.token).join(blank.answer), starterCode);
+}
+
+function uniqueLevelZeroChoices(answers, distractors) {
+    const seen = new Set();
+    return [...answers, ...distractors]
+        .filter(code => {
+            const key = normalizeCodeChoice(code);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .map((code, index) => ({
+            id: `choice-${index + 1}`,
+            code
+        }));
+}
+
+function makeLevelZeroTask({ id, title, objective, concepts, starterCode, blanks, distractors, variable, expected, functionHints = [] }) {
+    const solution = fillLevelZeroSolution(starterCode, blanks);
+    const answers = blanks.map(blank => blank.answer);
+    return {
+        id,
+        title,
+        objective,
+        taskType: "level-0-choice",
+        concepts,
+        starterCode,
+        blanks,
+        choices: uniqueLevelZeroChoices(answers, distractors),
+        solution: taskFix(solution),
+        errorFix: taskFix(solution),
+        algorithmFix: taskFix(solution),
+        functionHints,
+        checks: [
+            ...blanks.map(blank => ({
+                type: "blankChoice",
+                token: blank.token,
+                expected: blank.answer,
+                label: blank.label,
+                explanation: blank.explanation,
+                hint: blank.hint,
+                fix: `${blank.token} should be ${blank.answer}.\nWhy: ${blank.explanation}\n\nFull answer:\n${solution}`
+            })),
+            ...goalChecks({
+                variable,
+                expected,
+                concepts,
+                solution
+            })
+        ]
+    };
+}
+
+function getLevelZeroVariant(topicId, setOrder) {
+    const variantIndex = Math.max(0, (Number(setOrder) || 1) - 1);
+    const variants = {
+        assignment: [
+            { source: "saved_name", value: "Ada", target: "student_name", output: "display_name" },
+            { source: "home_city", value: "Paris", target: "city_name", output: "display_city" },
+            { source: "pet_source", value: "Milo", target: "pet_name", output: "shown_pet" },
+            { source: "course_source", value: "Python", target: "course_name", output: "label" },
+            { source: "team_source", value: "Delta", target: "team_name", output: "badge_text" }
+        ],
+        ifElse: [
+            { subject: "score", value: 72, threshold: 60, result: "result", pass: "pass", fail: "retry", op: ">=" },
+            { subject: "temperature", value: 12, threshold: 15, result: "coat", pass: "wear coat", fail: "no coat", op: "<" },
+            { subject: "stock", value: 0, threshold: 1, result: "status", pass: "sold out", fail: "in stock", op: "<" },
+            { subject: "age", value: 18, threshold: 18, result: "access", pass: "allowed", fail: "wait", op: ">=" },
+            { subject: "score", value: 91, threshold: 90, result: "grade", pass: "A", fail: "review", op: ">=" }
+        ],
+        forLoop: [
+            { stop: 4, expected: "6" },
+            { stop: 6, expected: "15" },
+            { stop: 5, expected: "10" },
+            { stop: 8, expected: "28" },
+            { stop: 7, expected: "21" }
+        ],
+        whileLoop: [
+            { target: 5 },
+            { target: 4 },
+            { target: 6 },
+            { target: 3 },
+            { target: 7 }
+        ],
+        listTraversal: [
+            { listName: "colors", items: ["red", "green", "blue"], selected: "first_color", last: "current_color" },
+            { listName: "scores", items: [4, 9, 2], selected: "first_score", last: "current_score" },
+            { listName: "levels", items: [1, 3, 5, 7], selected: "first_level", last: "current_level" },
+            { listName: "weights", items: [6, 2, 8, 4], selected: "first_weight", last: "current_weight" },
+            { listName: "points", items: [10, 15, 5], selected: "first_point", last: "current_point" }
+        ],
+        accumulator: [
+            { listName: "numbers", items: [10, 20, 30], totalVar: "total_sum", expected: "60" },
+            { listName: "prices", items: [5, 15, 20], totalVar: "total_price", expected: "40" },
+            { listName: "scores", items: [12, 8, 10], totalVar: "score_total", expected: "30" },
+            { listName: "distances", items: [3, 4, 5], totalVar: "total_distance", expected: "12" },
+            { listName: "orders", items: [7, 9, 11], totalVar: "order_total", expected: "27" }
+        ],
+        nestedLoop: [
+            { rows: ["A", "B"], cols: [1, 2, 3], expected: "6" },
+            { rows: ["A", "B", "C"], cols: [1, 2], expected: "6" },
+            { rows: ["N", "S"], cols: [1, 2, 3, 4], expected: "8" },
+            { rows: ["L", "R"], cols: [10, 20], expected: "4" },
+            { rows: ["X", "Y", "Z"], cols: [5, 6, 7], expected: "9" }
+        ],
+        functionCall: [
+            { fn: "square", body: "number * number", input: 4, expected: "16" },
+            { fn: "triple", body: "number * 3", input: 5, expected: "15" },
+            { fn: "add_ten", body: "number + 10", input: 9, expected: "19" },
+            { fn: "half", body: "number // 2", input: 20, expected: "10" },
+            { fn: "minus_two", body: "number - 2", input: 14, expected: "12" }
+        ],
+        recursion: [
+            { input: 5, expected: "120" },
+            { input: 4, expected: "24" },
+            { input: 6, expected: "720" },
+            { input: 3, expected: "6" },
+            { input: 5, expected: "120" }
+        ],
+        complex: [
+            { numbers: [2, 4, 6, 8, 10, 12], target: 8, expectedIndex: "3" },
+            { numbers: [3, 6, 9, 12], target: 9, expectedIndex: "2" },
+            { numbers: [2, 8, 14, 20, 26], target: 20, expectedIndex: "3" },
+            { numbers: [4, 7, 11, 18], target: 7, expectedIndex: "1" },
+            { numbers: [10, 15, 21, 28, 36], target: 36, expectedIndex: "4" }
+        ]
+    };
+    const topicVariants = variants[topicId] || variants.assignment;
+    return topicVariants[variantIndex % topicVariants.length];
+}
+
+function createLevelZeroTask(topicId, setOrder = 1) {
+    const cfg = getLevelZeroVariant(topicId, setOrder);
+    const prefix = `${topicId}-s${setOrder}-l0`;
+
+    if (topicId === "assignment") {
+        const starterCode = `${cfg.source} = "${cfg.value}"\n${cfg.target} = ___1___\n${cfg.output} = ___2___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose valid variable blocks",
+            objective: `Fill the blanks with variable names: use ${cfg.source} first, then ${cfg.target}. Do not choose keywords such as for/if or a quoted value.`,
+            concepts: ["Variable assignment"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: `${cfg.target} should read the existing source variable`, answer: cfg.source, explanation: `${cfg.source} is a valid variable name and already stores "${cfg.value}". A keyword such as for/if cannot be used as a value here, and a quoted string would skip variable assignment practice.`, hint: `Use the existing variable name ${cfg.source}; do not use a keyword or quoted text.` },
+                { token: "___2___", label: `${cfg.output} should read the copied variable`, answer: cfg.target, explanation: `${cfg.target} is the variable created on the previous line. Copying it proves the value can move through named storage step by step.`, hint: `Use ${cfg.target}, not the original string literal or a Python keyword.` }
+            ],
+            distractors: [`"${cfg.value}"`, "for", "if", cfg.output],
+            variable: cfg.output,
+            expected: cfg.value
+        });
+    }
+
+    if (topicId === "ifElse") {
+        const condition = `${cfg.subject} ${cfg.op} ${cfg.threshold}`;
+        const starterCode = `${cfg.subject} = ${cfg.value}\nif ___1___:\n    ${cfg.result} = ___2___\nelse:\n    ${cfg.result} = ___3___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the decision blocks",
+            objective: `Choose one valid comparison for the if line, then choose the quoted branch values. A single = or a keyword is not a condition.`,
+            concepts: ["Condition"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: "valid comparison that makes the correct branch run", answer: condition, explanation: `With ${cfg.subject} = ${cfg.value}, ${condition} is a true comparison. Conditions need comparison operators such as ==, <, >, <=, or >=; assignment with = is not allowed in an if condition.`, hint: `Compare ${cfg.subject} with ${cfg.threshold} using a comparison operator.` },
+                { token: "___2___", label: "value stored when the condition is true", answer: `"${cfg.pass}"`, explanation: `The true branch should store the target value "${cfg.pass}" because this task expects that branch to run.`, hint: `Use the quoted true-branch value.` },
+                { token: "___3___", label: "fallback value for the else branch", answer: `"${cfg.fail}"`, explanation: `The else branch still needs a valid fallback value even though this input should not use it.`, hint: `Use the quoted else value.` }
+            ],
+            distractors: [`${cfg.subject} = ${cfg.threshold}`, "if", `"${cfg.result}"`, `${cfg.result}`],
+            variable: cfg.result,
+            expected: cfg.pass
+        });
+    }
+
+    if (topicId === "forLoop") {
+        const starterCode = `total = 0\nfor number in ___1___:\n    total = ___2___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the for-loop blocks",
+            objective: `Choose a range() expression for the loop source and an accumulator expression that keeps the old total.`,
+            concepts: ["Loop", "Accumulator"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: `range that visits 1 through ${cfg.stop - 1}`, answer: `range(1, ${cfg.stop})`, explanation: `range(1, ${cfg.stop}) starts at 1 and stops before ${cfg.stop}, so it visits exactly the values that should be added.`, hint: `The stop value in range() is not included.` },
+                { token: "___2___", label: "accumulator update that keeps the previous total", answer: "total + number", explanation: `total + number preserves the running total and adds the current loop value. Using number alone would forget earlier values.`, hint: `Use both total and number.` }
+            ],
+            distractors: ["for", `range[1, ${cfg.stop}]`, "number", "total = number"],
+            variable: "total",
+            expected: cfg.expected,
+            functionHints: ["range"]
+        });
+    }
+
+    if (topicId === "whileLoop") {
+        const starterCode = `count = 0\nwhile ___1___:\n    count = ___2___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the while-loop blocks",
+            objective: `Choose a stopping condition and an update expression. The condition must eventually become false.`,
+            concepts: ["Loop"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: `condition that keeps looping until ${cfg.target}`, answer: `count < ${cfg.target}`, explanation: `count < ${cfg.target} is true while count is still below the goal and becomes false exactly when count reaches ${cfg.target}.`, hint: `The loop should stop when count reaches ${cfg.target}.` },
+                { token: "___2___", label: "update that moves count toward the stop condition", answer: "count + 1", explanation: `count + 1 increases count each pass, so the loop eventually reaches the stop condition. Without this, the loop may not finish.`, hint: `Increase count by one.` }
+            ],
+            distractors: ["while", `count = ${cfg.target}`, "count - 1", "1"],
+            variable: "count",
+            expected: String(cfg.target)
+        });
+    }
+
+    if (topicId === "listTraversal") {
+        const listLiteral = `[${cfg.items.map(item => typeof item === "string" ? `"${item}"` : item).join(", ")}]`;
+        const starterCode = `${cfg.listName} = ${listLiteral}\n${cfg.selected} = ___1___\nfor item in ${cfg.listName}:\n    ${cfg.last} = ___2___`;
+        const expectedLast = String(cfg.items[cfg.items.length - 1]);
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the list traversal blocks",
+            objective: `Choose index 0 for the first item, then choose the loop variable that holds each visited item.`,
+            concepts: ["List / sequence", "List traversal"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: "expression for the first list item", answer: `${cfg.listName}[0]`, explanation: `Python lists start at index 0, so ${cfg.listName}[0] reads the first item.`, hint: `Use index 0 for the first item.` },
+                { token: "___2___", label: "value currently visited by the loop", answer: "item", explanation: `Inside the loop, item is the variable that holds the current list value. Assigning it each pass leaves the final item at the end.`, hint: `Use the loop variable item.` }
+            ],
+            distractors: ["for", `${cfg.listName}[len(${cfg.listName})]`, `"item"`, "0"],
+            variable: cfg.last,
+            expected: expectedLast
+        });
+    }
+
+    if (topicId === "accumulator") {
+        const listLiteral = `[${cfg.items.join(", ")}]`;
+        const starterCode = `${cfg.listName} = ${listLiteral}\n${cfg.totalVar} = ___1___\nfor item in ${cfg.listName}:\n    ${cfg.totalVar} = ___2___\nfinal_total = ___3___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the accumulator blocks",
+            objective: `Choose the zero start, the running-total update, and the final accumulator variable.`,
+            concepts: ["Accumulator"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: "starting value before adding items", answer: "0", explanation: `A sum accumulator starts at 0 because no values have been added yet.`, hint: `A running sum starts from zero.` },
+                { token: "___2___", label: "update that keeps previous total and adds item", answer: `${cfg.totalVar} + item`, explanation: `${cfg.totalVar} + item keeps the old running total and adds the current item. Using item alone would reset the total every pass.`, hint: `Use both ${cfg.totalVar} and item.` },
+                { token: "___3___", label: "final value after the loop", answer: cfg.totalVar, explanation: `After the loop, ${cfg.totalVar} stores the completed running total, so final_total should copy it.`, hint: `Copy the accumulator variable.` }
+            ],
+            distractors: ["for", "item", `${cfg.totalVar} = item`, "final_total"],
+            variable: "final_total",
+            expected: cfg.expected
+        });
+    }
+
+    if (topicId === "nestedLoop") {
+        const rowsLiteral = `[${cfg.rows.map(row => `"${row}"`).join(", ")}]`;
+        const colsLiteral = `[${cfg.cols.join(", ")}]`;
+        const starterCode = `rows = ${rowsLiteral}\ncols = ${colsLiteral}\npair_count = ___1___\nfor row in rows:\n    for col in cols:\n        pair_count = ___2___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the nested-loop blocks",
+            objective: `Choose the counter start and the one-pair update used by the inner loop.`,
+            concepts: ["Nested loop", "Accumulator"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: "starting count before any pair is visited", answer: "0", explanation: `Before the nested loops run, no row-column pairs have been counted, so the counter starts at 0.`, hint: `Start the counter at zero.` },
+                { token: "___2___", label: "update that counts one pair per inner-loop pass", answer: "pair_count + 1", explanation: `The inner loop visits one pair at a time, so pair_count + 1 adds exactly one for each pair.`, hint: `Add one each time the inner loop runs.` }
+            ],
+            distractors: ["for", "pair_count", "row + col", "pair_count = 1"],
+            variable: "pair_count",
+            expected: cfg.expected
+        });
+    }
+
+    if (topicId === "functionCall") {
+        const starterCode = `def ${cfg.fn}(number):\n    return ___1___\n\nanswer = ___2___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the function blocks",
+            objective: `Choose the expression returned by the function, then choose the function call that actually runs it.`,
+            concepts: ["Function call"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: "expression returned by the function", answer: cfg.body, explanation: `The function receives number as a parameter, so the return expression must use number to compute the reusable result.`, hint: `Use the parameter named number.` },
+                { token: "___2___", label: "function call with the given input", answer: `${cfg.fn}(${cfg.input})`, explanation: `A function definition does not run by itself; ${cfg.fn}(${cfg.input}) calls it and stores the returned value.`, hint: `Call ${cfg.fn} with ${cfg.input}.` }
+            ],
+            distractors: ["def", cfg.fn, `${cfg.fn}()`, "return number"],
+            variable: "answer",
+            expected: cfg.expected
+        });
+    }
+
+    if (topicId === "recursion") {
+        const starterCode = `def factorial(n):\n    if n == 1:\n        return ___1___\n    return n * ___2___\n\nanswer = ___3___`;
+        return makeLevelZeroTask({
+            id: prefix,
+            title: "Choose the recursion blocks",
+            objective: `Choose the base-case return, the smaller recursive call, and the call that starts the recursion.`,
+            concepts: ["Recursion"],
+            starterCode,
+            blanks: [
+                { token: "___1___", label: "base-case value", answer: "1", explanation: `factorial(1) is 1, so the base case must return 1 to stop the recursion correctly.`, hint: `The base case returns the simplest factorial value.` },
+                { token: "___2___", label: "recursive call on the smaller problem", answer: "factorial(n - 1)", explanation: `factorial(n - 1) makes the problem smaller each time; calling factorial(n) would never move toward the base case.`, hint: `Use n - 1 inside the recursive call.` },
+                { token: "___3___", label: "call that starts the recursion", answer: `factorial(${cfg.input})`, explanation: `The final line must call factorial with the task's input so answer receives the computed result.`, hint: `Call factorial with ${cfg.input}.` }
+            ],
+            distractors: ["for", "factorial(n)", `factorial(${cfg.input - 1})`, "n - 1"],
+            variable: "answer",
+            expected: cfg.expected
+        });
+    }
+
+    const nums = `[${cfg.numbers.join(", ")}]`;
+    const starterCode = `numbers = ${nums}\ntarget = ${cfg.target}\nfound_index = -1\nfor index in ___1___:\n    if ___2___:\n        found_index = ___3___\n        break`;
+    return makeLevelZeroTask({
+        id: prefix,
+        title: "Choose the search blocks",
+        objective: `Choose the index range, the target comparison, and the index value to store when the target is found.`,
+        concepts: ["Loop", "Condition"],
+        starterCode,
+        blanks: [
+            { token: "___1___", label: "range that scans every valid index", answer: "range(len(numbers))", explanation: `range(len(numbers)) creates valid indexes from 0 up to the last list position without going out of range.`, hint: `Use len(numbers) to get the list length.` },
+            { token: "___2___", label: "condition that detects the target", answer: "numbers[index] == target", explanation: `numbers[index] reads the current item; comparing it with target tells Python when the search has found the wanted value.`, hint: `Compare the current list item with target.` },
+            { token: "___3___", label: "index to store when the target is found", answer: "index", explanation: `When the target is found, index is the current position, so found_index should store index.`, hint: `Store the loop index, not the target value.` }
+        ],
+        distractors: ["for", "range(numbers)", "numbers == target", "target"],
+        variable: "found_index",
+        expected: cfg.expectedIndex,
+        functionHints: ["range", "len"]
+    });
+}
+
+function addLevelZeroTasksToQuestionBank(bank) {
+    Object.entries(bank).forEach(([topicId, tasks]) => {
+        const sets = new Map();
+        tasks.forEach(task => {
+            const setId = task.setId || "set-1";
+            if (!sets.has(setId)) {
+                sets.set(setId, {
+                    setId,
+                    setTitle: task.setTitle || "Set 1",
+                    setOrder: task.setOrder || 1
+                });
+            }
+        });
+
+        sets.forEach(set => {
+            const alreadyHasLevelZero = tasks.some(task => (task.setId || "set-1") === set.setId && getTaskLevelNumber(task) === 0);
+            if (alreadyHasLevelZero) return;
+            const levelZeroTask = createLevelZeroTask(topicId, set.setOrder);
+            tasks.push({
+                ...levelZeroTask,
+                setId: set.setId,
+                setTitle: set.setTitle,
+                setOrder: set.setOrder,
+                levelOrder: 0,
+                difficulty: getDifficultyMeta(set.setOrder, 0, levelZeroTask)
+            });
+        });
+    });
+    return bank;
 }
 
 function buildAssignmentQuestionSet(setNumber, cfg) {
@@ -4168,7 +4977,7 @@ function buildComplexQuestionSet(setNumber, cfg) {
     ];
 }
 
-Object.assign(STUDENT_LEVEL_TASKS, buildPracticeTopicQuestionSets());
+Object.assign(STUDENT_LEVEL_TASKS, addLevelZeroTasksToQuestionBank(buildPracticeTopicQuestionSets()));
 
 const TOPIC_LEVEL_PATHS = Object.fromEntries(
     Object.entries(STUDENT_LEVEL_TASKS).map(([topicId, tasks]) => [topicId, tasks.map(task => task.id)])
@@ -4177,58 +4986,58 @@ const TOPIC_LEVEL_PATHS = Object.fromEntries(
 const WALKTHROUGH_DEMOS = {
     mission: {
         topicId: "accumulator",
-        taskId: "sum-three",
+        taskId: "accumulator-l2-line",
         solutionCode: `total_sum = 0
-numbers = [10, 20, 30]
+prices = [10, 20, 30, 40]
 
-for number in numbers:
-    total_sum += number`,
-        summary: "The walkthrough opens Level 1, fixes the accumulator, runs it, and shows the auto-check feedback.",
-        steps: ["Open Level 1", "Replace the broken accumulator update", "Run the trace", "Read the pass/fail feedback"]
+for price in prices:
+    total_sum += price`,
+        summary: "The walkthrough opens one accumulator level, writes the update line, runs it, and shows the auto-check feedback.",
+        steps: ["Open an accumulator level", "Replace pass with the accumulator update", "Run the trace", "Read the pass/fail feedback"]
     },
     prediction: {
         topicId: "accumulator",
-        taskId: "sum-three",
+        taskId: "accumulator-l2-line",
         solutionCode: `total_sum = 0
-numbers = [10, 20, 30]
+prices = [10, 20, 30, 40]
 
-for number in numbers:
-    total_sum += number`,
+for price in prices:
+    total_sum += price`,
         summary: "The walkthrough runs the trace, predicts the first changed variable value, and checks the answer.",
         steps: ["Run the corrected code", "Pause on the first trace step", "Fill the predicted value", "Check the prediction"]
     },
     debug: {
         topicId: "accumulator",
-        taskId: "sum-three",
+        taskId: "accumulator-l2-line",
         solutionCode: `total_sum = 0
-numbers = [10, 20, 30]
+prices = [10, 20, 30, 40]
 
-for number in numbers:
-    total_sum += number`,
+for price in prices:
+    total_sum += price`,
         bugLine: 5,
-        bugReason: "Line 5 overwrites total_sum with one number, so it forgets the earlier loop values.",
+        bugReason: "The placeholder line does not add the current price into total_sum.",
         summary: "The walkthrough reports the bug line, explains the state problem, fixes the code, and runs the trace.",
         steps: ["Select the suspicious line", "Write the bug explanation", "Submit the bug report", "Fix and run the code"]
     },
     aiReview: {
         topicId: "accumulator",
-        taskId: "sum-three",
+        taskId: "accumulator-l2-line",
         solutionCode: `total_sum = 0
-numbers = [10, 20, 30]
+prices = [10, 20, 30, 40]
 
-for number in numbers:
-    total_sum += number`,
+for price in prices:
+    total_sum += price`,
         summary: "The walkthrough selects the correct review concerns, fixes the AI-style draft, and verifies the result.",
         steps: ["Select the real review concerns", "Submit the AI review", "Improve the code", "Run the trace as evidence"]
     },
     skillTree: {
         topicId: "accumulator",
-        taskId: "sum-three",
+        taskId: "accumulator-l2-line",
         solutionCode: `total_sum = 0
-numbers = [10, 20, 30]
+prices = [10, 20, 30, 40]
 
-for number in numbers:
-    total_sum += number`,
+for price in prices:
+    total_sum += price`,
         summary: "The walkthrough completes one task so the growth map has progress to display.",
         steps: ["Open the growth map", "Complete one trace task", "Update skill progress", "Inspect the progress bars"]
     }
@@ -4254,12 +5063,31 @@ const lessonStatus = document.getElementById('lesson-status');
 const exercisePanelTitle = document.getElementById('exercise-panel-title');
 const teacherInsights = document.getElementById('teacher-insights');
 const btnPracticeView = document.getElementById('btn-practice-view');
+const btnReviewLabView = document.getElementById('btn-review-lab-view');
+const btnQualityStudioView = document.getElementById('btn-quality-studio-view');
 const btnDashboardView = document.getElementById('btn-dashboard-view');
 const btnQuestionBankView = document.getElementById('btn-question-bank-view');
 const dashboardSummary = document.getElementById('dashboard-summary');
 const dashboardSkillCloud = document.getElementById('dashboard-skill-cloud');
 const dashboardTopicTable = document.getElementById('dashboard-topic-table');
+const dashboardReviewEvidence = document.getElementById('dashboard-review-evidence');
 const questionBankContent = document.getElementById('question-bank-content');
+const reviewTaskSelect = document.getElementById('review-task-select');
+const reviewProgressLabel = document.getElementById('review-progress-label');
+const reviewSessionState = document.getElementById('review-session-state');
+const btnReviewNext = document.getElementById('btn-review-next');
+const btnReviewPause = document.getElementById('btn-review-pause');
+const btnReviewLastAttempt = document.getElementById('btn-review-last-attempt');
+const btnReviewRetry = document.getElementById('btn-review-retry');
+const reviewRequirement = document.getElementById('review-requirement');
+const reviewAiCode = document.getElementById('review-ai-code');
+const btnReviewRestore = document.getElementById('btn-review-restore');
+const reviewIssueList = document.getElementById('review-issue-list');
+const reviewTestList = document.getElementById('review-test-list');
+const reviewReason = document.getElementById('review-reason');
+const btnReviewEvaluate = document.getElementById('btn-review-evaluate');
+const reviewResults = document.getElementById('review-results');
+const reviewHistory = document.getElementById('review-history');
 const btnExportReport = document.getElementById('btn-export-report');
 const exportReportMenu = document.getElementById('export-report-menu');
 const reportScopeSelect = document.getElementById('report-scope-select');
@@ -4315,9 +5143,9 @@ const GUIDE_STEPS = [
         placement: "left"
     },
     {
-        title: "4. Edit the code",
-        body: "Change only what the current level asks for. The active level is the task that Code is trying to solve.",
-        focus: "#code-input",
+        title: "4. Fill or edit",
+        body: "For Level 0, drag code blocks into the gate below Code. For later levels, change only what the current level asks for.",
+        focus: "#blank-slot",
         placement: "right"
     },
     {
@@ -4377,8 +5205,166 @@ function normalizeValue(value) {
     return String(value ?? '').trim();
 }
 
+function normalizeCodeChoice(value) {
+    return String(value ?? '')
+        .trim()
+        .replace(/\s+/g, " ")
+        .replace(/\s*([=+\-*/%(),:<>\[\]])\s*/g, "$1");
+}
+
+function getTeacherTaskOverrides() {
+    return readJsonStorage(TEACHER_TASK_OVERRIDES_KEY, {});
+}
+
+function writeTeacherTaskOverrides(overrides) {
+    writeJsonStorage(TEACHER_TASK_OVERRIDES_KEY, overrides);
+}
+
+function getTeacherOverrideKey(topicId, taskId) {
+    return `${topicId}:${taskId}`;
+}
+
+function getTaskGoalCheck(task) {
+    return (task?.checks || []).find(check => check.type === "variableEquals") || null;
+}
+
+function getEditableTaskSnapshot(task) {
+    const goalCheck = getTaskGoalCheck(task);
+    return {
+        title: task?.title || "",
+        objective: task?.objective || "",
+        starterCode: task?.starterCode || "",
+        solution: stripTaskFixPrefix(task?.teacherSolution || task?.solution || ""),
+        variable: goalCheck?.variable || "",
+        expected: goalCheck?.expected || "",
+        functionHints: (task?.functionHints || []).join(", "),
+        blanksJson: JSON.stringify(task?.blanks || [], null, 2),
+        choicesJson: JSON.stringify(task?.choices || [], null, 2),
+        debugJson: JSON.stringify(task?.debug || null, null, 2)
+    };
+}
+
+function stripTaskFixPrefix(value) {
+    return String(value || "").replace(/^One valid answer:\n/, "");
+}
+
+function parseTeacherJsonField(value, fallback, fieldName) {
+    const text = String(value || "").trim();
+    if (!text) return fallback;
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        throw new Error(`${fieldName} must be valid JSON. ${error.message}`);
+    }
+}
+
+function normalizeFunctionHints(value) {
+    return String(value || "")
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
+function syncChecksForTeacherTask(task, override) {
+    const variable = override.variable || getTaskGoalCheck(task)?.variable || "";
+    const expected = override.expected || getTaskGoalCheck(task)?.expected || "";
+    const solution = override.solution || stripTaskFixPrefix(task.solution || "");
+    const baseChecks = Array.isArray(override.blanks)
+        ? [
+            ...override.blanks
+                .filter(blank => blank?.token && blank?.answer)
+                .map(blank => ({
+                    type: "blankChoice",
+                    token: blank.token,
+                    expected: blank.answer,
+                    label: blank.label || blank.token,
+                    explanation: blank.explanation || "",
+                    hint: blank.hint || "",
+                    fix: `${blank.token} should be ${blank.answer}.\nWhy: ${blank.explanation || blank.hint || "This code block fits the surrounding code."}\n\nFull answer:\n${solution}`
+                })),
+            ...(task.checks || []).filter(check => check.type !== "blankChoice")
+        ]
+        : (task.checks || []);
+    const checks = baseChecks.map(check => {
+        if (check.type === "variableEquals") {
+            return {
+                ...check,
+                variable,
+                expected,
+                fix: taskFix(solution)
+            };
+        }
+        if (check.type === "noErrors") {
+            return {
+                ...check,
+                fix: taskFix(solution)
+            };
+        }
+        if (check.type === "conceptSeen") {
+            return {
+                ...check,
+                fix: taskFix(solution)
+            };
+        }
+        if (check.type === "blankChoice") {
+            return {
+                ...check,
+                fix: `${check.token} should be ${check.expected}.\nWhy: ${check.explanation || check.hint || "This code block fits the surrounding code."}\n\nFull answer:\n${solution}`
+            };
+        }
+        if (check.type === "codeRegex" || check.type === "maxNonEmptyLines" || check.type === "antiShortcut") {
+            return {
+                ...check,
+                fix: taskFix(solution)
+            };
+        }
+        return check;
+    });
+
+    if (variable && expected && !checks.some(check => check.type === "variableEquals")) {
+        checks.push({ type: "variableEquals", variable, expected, fix: taskFix(solution) });
+    }
+    if (!checks.some(check => check.type === "noErrors")) {
+        checks.unshift({ type: "noErrors", fix: taskFix(solution) });
+    }
+
+    return checks;
+}
+
+function applyTeacherTaskOverride(topicId, task) {
+    const override = getTeacherTaskOverrides()[getTeacherOverrideKey(topicId, task.id)];
+    if (!override) {
+        const levelNumber = getTaskLevelNumber(task);
+        return {
+            ...task,
+            difficulty: task.difficulty || getDifficultyMeta(task.setOrder || 1, levelNumber, task)
+        };
+    }
+
+    const merged = {
+        ...task,
+        title: override.title ?? task.title,
+        objective: override.objective ?? task.objective,
+        starterCode: override.starterCode ?? task.starterCode,
+        blanks: Array.isArray(override.blanks) ? override.blanks : task.blanks,
+        choices: Array.isArray(override.choices) ? override.choices : task.choices,
+        functionHints: Array.isArray(override.functionHints) ? override.functionHints : task.functionHints,
+        debug: override.debug === undefined ? task.debug : override.debug,
+        teacherModified: true,
+        teacherUpdatedAt: override.updatedAt || "",
+        teacherSolution: override.solution || stripTaskFixPrefix(task.solution || "")
+    };
+    merged.solution = taskFix(merged.teacherSolution);
+    merged.errorFix = taskFix(merged.teacherSolution);
+    merged.algorithmFix = taskFix(merged.teacherSolution);
+    merged.checks = syncChecksForTeacherTask(merged, override);
+    merged.difficulty = task.difficulty || getDifficultyMeta(task.setOrder || 1, getTaskLevelNumber(task), task);
+    return merged;
+}
+
 function getQuestionBankForTopic(topicId) {
-    return STUDENT_LEVEL_TASKS[topicId] || PRACTICE_TASKS[topicId] || [];
+    const bank = STUDENT_LEVEL_TASKS[topicId] || PRACTICE_TASKS[topicId] || [];
+    return bank.map(task => applyTeacherTaskOverride(topicId, task));
 }
 
 function getTasksForTopic(topicId) {
@@ -4423,8 +5409,12 @@ function getTopicBatch(topicId) {
 }
 
 function isValidTopicBatch(topicId, batch) {
-    const bankIds = new Set(getQuestionBankForTopic(topicId).map(task => task.id));
-    return (batch.taskIds || []).every(taskId => bankIds.has(taskId));
+    const taskMap = new Map(getQuestionBankForTopic(topicId).map(task => [task.id, task]));
+    const taskIds = batch.taskIds || [];
+    const hasLevelZero = taskIds.some(taskId => getTaskLevelNumber(taskMap.get(taskId)) === 0);
+    return taskIds.length > 0
+        && hasLevelZero
+        && taskIds.every(taskId => taskMap.has(taskId));
 }
 
 function getQuestionSetsForTopic(topicId) {
@@ -4507,7 +5497,7 @@ function getLevelGroupsForTopic(topicId) {
         if (!groups.has(levelNumber)) {
             groups.set(levelNumber, {
                 level: levelNumber,
-                stage: LEVEL_STAGE_LABELS[levelNumber - 1] || `Level ${levelNumber}`,
+                stage: getLevelStageLabel(levelNumber),
                 tasks: []
             });
         }
@@ -4555,6 +5545,15 @@ function getActiveTask() {
 
 function isBlankTask(task = getActiveTask()) {
     return Boolean(task?.blanks?.length);
+}
+
+function isLevelZeroTask(task = getActiveTask()) {
+    return task?.taskType === "level-0-choice";
+}
+
+function getLevelZeroAttemptKey(topicId = activeLessonId, task = getActiveTask()) {
+    const batchId = getTopicBatch(topicId).batchId;
+    return `${topicId}:${batchId}:${task?.id || ""}`;
 }
 
 function getBlankValue(token) {
@@ -4883,12 +5882,13 @@ function getPracticePath(topicId = activeLessonId) {
         .map((taskId, index) => {
             const task = taskMap.get(taskId);
             if (!task) return null;
+            const level = getTaskLevelNumber(task, index);
             return {
                 topicId,
                 taskId,
                 batchId: batch.batchId,
-                level: index + 1,
-                stage: LEVEL_STAGE_LABELS[index] || `Level ${index + 1}`
+                level,
+                stage: getLevelStageLabel(level)
             };
         })
         .filter(Boolean);
@@ -4928,8 +5928,10 @@ function getTopicProgress(topicId) {
 }
 
 function setActiveView(view) {
-    activeView = ["dashboard", "bank"].includes(view) ? view : "practice";
+    activeView = ["dashboard", "bank", "review", "quality"].includes(view) ? view : "practice";
     syncModeShell();
+    renderReviewLab();
+    if (typeof renderQualityStudio === "function") renderQualityStudio();
     renderDashboard();
     renderQuestionBank();
 }
@@ -4952,13 +5954,548 @@ function ensureMissionTaskSelected() {
 function syncModeShell() {
     document.body.classList.toggle("dashboard-active", activeView === "dashboard");
     document.body.classList.toggle("question-bank-active", activeView === "bank");
+    document.body.classList.toggle("review-lab-active", activeView === "review");
+    document.body.classList.toggle("quality-studio-active", activeView === "quality");
     btnPracticeView?.classList.toggle("active", activeView === "practice");
+    btnReviewLabView?.classList.toggle("active", activeView === "review");
+    btnQualityStudioView?.classList.toggle("active", activeView === "quality");
     btnDashboardView?.classList.toggle("active", activeView === "dashboard");
     btnQuestionBankView?.classList.toggle("active", activeView === "bank");
 
     if (!modeContext) return;
 
-    modeContext.innerHTML = `<strong>Practice flow:</strong> choose a Practice Topic, follow the current Level card, then click Compile & Run. Level 1 uses the Fill-in-the-blank gate; Levels 2-5 are edited in Code.`;
+    modeContext.innerHTML = `<strong>Practice flow:</strong> choose a Practice Topic, follow the current Level card, then click Compile & Run. Level 0 uses draggable code blocks; Level 1 uses the fill-in gate; Levels 2-5 are edited in Code.`;
+}
+
+function getReviewLabTask(taskId = activeReviewLabTaskId) {
+    return REVIEW_LAB_TASKS.find(task => task.id === taskId) || REVIEW_LAB_TASKS[0];
+}
+
+function getReviewLabRecords() {
+    const records = readJsonStorage(REVIEW_LAB_RECORDS_KEY, []);
+    return Array.isArray(records) ? records : [];
+}
+
+function getReviewLabProgress() {
+    const progress = readJsonStorage(REVIEW_LAB_PROGRESS_KEY, []);
+    return new Set(Array.isArray(progress) ? progress : []);
+}
+
+function getReviewLabDrafts() {
+    const drafts = readJsonStorage(REVIEW_LAB_DRAFTS_KEY, {});
+    return drafts && typeof drafts === "object" && !Array.isArray(drafts) ? drafts : {};
+}
+
+function getReviewLabDraft(taskId = activeReviewLabTaskId) {
+    return getReviewLabDrafts()[taskId] || null;
+}
+
+function writeReviewLabDraft(taskId, draft) {
+    const drafts = getReviewLabDrafts();
+    drafts[taskId] = draft;
+    writeJsonStorage(REVIEW_LAB_DRAFTS_KEY, drafts);
+}
+
+function removeReviewLabDraft(taskId = activeReviewLabTaskId) {
+    const drafts = getReviewLabDrafts();
+    delete drafts[taskId];
+    writeJsonStorage(REVIEW_LAB_DRAFTS_KEY, drafts);
+}
+
+function saveReviewLabDraft(options = {}) {
+    if (!reviewAiCode || reviewLabLoadedTaskId !== activeReviewLabTaskId) return null;
+    const selectedIssueIds = getCheckedReviewValues("review-issue");
+    const selectedTestIds = getCheckedReviewValues("review-test");
+    const sameSelection = (left = [], right = []) => [...left].sort().join("|") === [...right].sort().join("|");
+    const matchesAcceptedAttempt = reviewLabLastResult?.passed
+        && reviewLabLastResult.taskId === activeReviewLabTaskId
+        && reviewAiCode.value === (reviewLabLastResult.submittedCode || "")
+        && (reviewReason?.value || "") === (reviewLabLastResult.reason || "")
+        && sameSelection(selectedIssueIds, reviewLabLastResult.selectedIssueIds)
+        && sameSelection(selectedTestIds, reviewLabLastResult.selectedTestIds);
+    if (matchesAcceptedAttempt && !options.force) {
+        removeReviewLabDraft(activeReviewLabTaskId);
+        if (options.announce) reviewLabSessionMessage = "Completed attempt saved in history; there is no unfinished draft.";
+        renderReviewSessionState();
+        return null;
+    }
+    const draft = {
+        code: reviewAiCode.value,
+        reason: reviewReason?.value || "",
+        selectedIssueIds,
+        selectedTestIds,
+        updatedAt: new Date().toISOString()
+    };
+    writeReviewLabDraft(activeReviewLabTaskId, draft);
+    localStorage.setItem(REVIEW_LAB_ACTIVE_KEY, activeReviewLabTaskId);
+    if (options.announce) reviewLabSessionMessage = "Draft saved. You can continue this challenge when you return.";
+    renderReviewSessionState();
+    return draft;
+}
+
+function scheduleReviewLabDraftSave() {
+    clearTimeout(reviewLabDraftTimer);
+    reviewLabDraftTimer = setTimeout(() => {
+        reviewLabSessionMessage = "Draft autosaved.";
+        saveReviewLabDraft();
+    }, 350);
+}
+
+function getReviewLabTaskAttempts(taskId = activeReviewLabTaskId) {
+    return getReviewLabRecords()
+        .map((record, storageIndex) => ({ record, storageIndex }))
+        .filter(item => item.record.taskId === taskId);
+}
+
+function recordReviewLabAttempt(record) {
+    const records = getReviewLabRecords();
+    records.push(record);
+    writeJsonStorage(REVIEW_LAB_RECORDS_KEY, records.slice(-120));
+
+    if (record.passed) {
+        const progress = getReviewLabProgress();
+        progress.add(record.taskId);
+        writeJsonStorage(REVIEW_LAB_PROGRESS_KEY, [...progress]);
+    }
+
+    studentActionLog.push({
+        timestamp: record.timestamp,
+        actionType: "review-evaluation",
+        label: record.title,
+        topicId: "ai-review-lab",
+        topicTitle: "AI Code Review Lab",
+        taskId: record.taskId,
+        taskTitle: record.title,
+        contentMode: "review-lab",
+        result: record.passed ? "passed" : "needs-revision"
+    });
+}
+
+function setActiveReviewLabTask(taskId) {
+    if (reviewLabLoadedTaskId === activeReviewLabTaskId) saveReviewLabDraft();
+    activeReviewLabTaskId = getReviewLabTask(taskId).id;
+    localStorage.setItem(REVIEW_LAB_ACTIVE_KEY, activeReviewLabTaskId);
+    reviewLabLoadedTaskId = null;
+    reviewLabLastResult = null;
+    reviewLabSessionMessage = "";
+    renderReviewLab();
+}
+
+function renderReviewLab() {
+    if (!reviewTaskSelect || !reviewRequirement || !reviewAiCode || !reviewResults) return;
+
+    const task = getReviewLabTask();
+    const progress = getReviewLabProgress();
+    const completedCount = REVIEW_LAB_TASKS.filter(item => progress.has(item.id)).length;
+    const draft = getReviewLabDraft(task.id);
+    const resultSelections = reviewLabLastResult?.taskId === task.id ? reviewLabLastResult : null;
+    const selectedIssueIds = new Set(draft?.selectedIssueIds || resultSelections?.selectedIssueIds || []);
+    const selectedTestIds = new Set(draft?.selectedTestIds || resultSelections?.selectedTestIds || []);
+    const difficultyOrder = ["Starter", "Developing", "Applied", "Challenge"];
+
+    reviewTaskSelect.innerHTML = difficultyOrder.map(difficulty => {
+        const tasks = REVIEW_LAB_TASKS.filter(item => item.difficulty === difficulty);
+        if (!tasks.length) return "";
+        return `<optgroup label="${escapeHtml(difficulty)}">${tasks.map(item => {
+            const index = REVIEW_LAB_TASKS.findIndex(candidate => candidate.id === item.id);
+            return `<option value="${escapeHtml(item.id)}" ${item.id === task.id ? "selected" : ""}>${progress.has(item.id) ? "Completed - " : ""}${index + 1}. ${escapeHtml(item.title)}</option>`;
+        }).join("")}</optgroup>`;
+    }).join("");
+
+    reviewProgressLabel.innerHTML = `<strong>${completedCount}/${REVIEW_LAB_TASKS.length} challenges demonstrated</strong>&nbsp; Each challenge records diagnosis, test design, repair, and explanation evidence.`;
+    reviewRequirement.innerHTML = `
+        <div>
+            <h2>${escapeHtml(task.title)}</h2>
+            <p><strong>${escapeHtml(task.category)}</strong> · ${escapeHtml(task.difficulty)}</p>
+        </div>
+        <p>${escapeHtml(task.requirement)}</p>
+        <ul class="review-constraint-list">
+            ${task.constraints.map(item => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+    `;
+
+    reviewIssueList.innerHTML = task.issueOptions.map(option => `
+        <label class="review-option-row">
+            <input type="checkbox" name="review-issue" value="${escapeHtml(option.id)}" ${selectedIssueIds.has(option.id) ? "checked" : ""}>
+            <span><strong>${escapeHtml(option.label)}</strong>Select only if this claim identifies a real defect or quality problem.</span>
+        </label>
+    `).join("");
+
+    reviewTestList.innerHTML = task.testOptions.map(option => `
+        <label class="review-option-row">
+            <input type="checkbox" name="review-test" value="${escapeHtml(option.id)}" ${selectedTestIds.has(option.id) ? "checked" : ""}>
+            <span><strong>${escapeHtml(option.label)}</strong>Use this test only if it provides valid evidence for the stated contract.</span>
+        </label>
+    `).join("");
+
+    if (reviewLabLoadedTaskId !== task.id) {
+        reviewAiCode.value = draft?.code ?? task.aiCode;
+        reviewReason.value = draft?.reason ?? "";
+        reviewLabLoadedTaskId = task.id;
+    }
+
+    renderReviewSessionState();
+    renderReviewLabResult(reviewLabLastResult);
+    renderReviewHistory();
+}
+
+function renderReviewSessionState() {
+    if (!reviewSessionState) return;
+    const draft = getReviewLabDraft();
+    const attempts = getReviewLabTaskAttempts();
+    const progress = getReviewLabProgress();
+    const draftLabel = draft
+        ? `Draft saved ${new Date(draft.updatedAt).toLocaleString()}`
+        : "No saved draft yet";
+    const completionLabel = progress.has(activeReviewLabTaskId)
+        ? "Challenge demonstrated; a new attempt can be used for review practice."
+        : `${attempts.length} evaluated attempt${attempts.length === 1 ? "" : "s"}.`;
+    reviewSessionState.innerHTML = `
+        <span><strong>${escapeHtml(reviewLabSessionMessage || draftLabel)}</strong></span>
+        <span>${escapeHtml(completionLabel)}</span>
+    `;
+    if (btnReviewLastAttempt) btnReviewLastAttempt.disabled = attempts.length === 0;
+}
+
+function getCheckedReviewValues(name) {
+    return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value);
+}
+
+function evaluateReviewSource(task, code) {
+    const checks = [];
+    const normalizedCode = String(code || "");
+    if (task.requiresCodeChange !== false) {
+        checks.push({
+            passed: normalizedCode.trim() !== task.aiCode.trim(),
+            label: "The submitted fix changes the generated code rather than approving it unchanged."
+        });
+    }
+
+    if (task.id === "review-count-passing") {
+        checks.push({
+            passed: /\bfor\b|\bwhile\b|\bsum\s*\(/.test(normalizedCode),
+            label: "The solution replaces fixed index-by-index checks with iteration or an equivalent scalable construct."
+        });
+    }
+
+    if (task.sourceRule === "targeted-value-error") {
+        checks.push({
+            passed: /except\s+ValueError(?:\s+as\s+[A-Za-z_]\w*)?\s*:/.test(normalizedCode) && !/except\s*:|except\s+Exception(?:\s+as\s+[A-Za-z_]\w*)?\s*:/.test(normalizedCode),
+            label: "The repair catches ValueError specifically and does not hide unrelated exceptions."
+        });
+    }
+
+    if (task.sourceRule === "linear-duplicate") {
+        const usesLinearMembership = /\bset\s*\(|\bset\s*\(\s*\)|dict\.fromkeys\s*\(/.test(normalizedCode);
+        const loopCount = (normalizedCode.match(/\bfor\b/g) || []).length;
+        checks.push({
+            passed: usesLinearMembership && loopCount <= 1,
+            label: "The repair uses set/dictionary membership without retaining the quadratic nested-loop scan."
+        });
+    }
+
+    if (task.sourceRule === "ordered-unique") {
+        const discardsOrderThroughSetConversion = /list\s*\(\s*set\s*\(/.test(normalizedCode);
+        const expressesFirstSeenOrder = /dict\.fromkeys\s*\(|\.append\s*\(|\byield\b/.test(normalizedCode);
+        checks.push({
+            passed: !discardsOrderThroughSetConversion && expressesFirstSeenOrder,
+            label: "The repair explicitly preserves first-seen order instead of converting a set directly back to a list."
+        });
+    }
+
+    return checks;
+}
+
+function assessReviewSelections(task, selectedIssueIds, selectedTestIds) {
+    const correctIssueIds = task.issueOptions.filter(option => option.correct).map(option => option.id);
+    const missingIssueIds = correctIssueIds.filter(id => !selectedIssueIds.includes(id));
+    const incorrectIssueIds = selectedIssueIds.filter(id => !correctIssueIds.includes(id));
+    const missingTestIds = task.requiredTestIds.filter(id => !selectedTestIds.includes(id));
+    const invalidTestIds = selectedTestIds.filter(id => !task.testOptions.find(option => option.id === id)?.diagnostic);
+
+    return {
+        issuePassed: missingIssueIds.length === 0 && incorrectIssueIds.length === 0,
+        testDesignPassed: missingTestIds.length === 0 && invalidTestIds.length === 0,
+        missingIssueIds,
+        incorrectIssueIds,
+        missingTestIds,
+        invalidTestIds
+    };
+}
+
+async function evaluateReviewLab() {
+    if (reviewLabRunning) return;
+
+    const task = getReviewLabTask();
+    const code = reviewAiCode.value;
+    const reason = reviewReason.value.trim();
+    const selectedIssueIds = getCheckedReviewValues("review-issue");
+    const selectedTestIds = getCheckedReviewValues("review-test");
+    const selection = assessReviewSelections(task, selectedIssueIds, selectedTestIds);
+    const sourceChecks = evaluateReviewSource(task, code);
+    const sourcePassed = sourceChecks.every(check => check.passed);
+    const normalizedReason = reason.toLowerCase();
+    const reasonKeywordFound = (task.reasonKeywords || []).some(keyword => normalizedReason.includes(String(keyword).toLowerCase()));
+    const reasonPassed = reason.length >= 45 && (reasonKeywordFound || reason.length >= 100);
+    saveReviewLabDraft();
+
+    reviewLabRunning = true;
+    btnReviewEvaluate.disabled = true;
+    btnReviewEvaluate.textContent = "Running Evidence...";
+    reviewResults.innerHTML = `<div class="review-feedback-box">Running the repaired code against normal, boundary, and additional checks...</div>`;
+
+    let responseData = { passed: false, tests: [], error: "" };
+    try {
+        const response = await fetch("/api/execution/review-tests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, tests: task.allTests })
+        });
+        const responseText = await response.text();
+        if (!response.ok) throw new Error(responseText || `Review test request failed (${response.status}).`);
+        responseData = JSON.parse(responseText);
+    } catch (error) {
+        responseData = { passed: false, tests: [], error: error.message || "The review test engine could not run." };
+    } finally {
+        reviewLabRunning = false;
+        btnReviewEvaluate.disabled = false;
+        btnReviewEvaluate.textContent = "Evaluate Review & Fix";
+    }
+
+    const runtimePassed = Boolean(responseData.passed);
+    const infrastructureFailure = /Python 3 is not available|No installed Python|Failed to fetch|review test request failed \(404\)/i.test(responseData.error || "");
+    const passed = selection.issuePassed && selection.testDesignPassed && runtimePassed && sourcePassed && reasonPassed;
+    const priorAttempts = getReviewLabRecords().filter(record => record.taskId === task.id).length;
+    const result = {
+        timestamp: new Date().toISOString(),
+        taskId: task.id,
+        title: task.title,
+        abilities: task.abilities,
+        selectedIssueIds,
+        selectedTestIds,
+        submittedCode: code,
+        reason,
+        reasonKeywordFound,
+        issuePassed: selection.issuePassed,
+        testDesignPassed: selection.testDesignPassed,
+        runtimePassed,
+        infrastructureFailure,
+        sourcePassed,
+        reasonPassed,
+        passed,
+        sourceChecks,
+        tests: Array.isArray(responseData.tests) ? responseData.tests : [],
+        engineError: responseData.error || "",
+        missingIssueIds: selection.missingIssueIds,
+        incorrectIssueIds: selection.incorrectIssueIds,
+        missingTestIds: selection.missingTestIds,
+        invalidTestIds: selection.invalidTestIds,
+        attemptNumber: priorAttempts + 1
+    };
+
+    if (!infrastructureFailure) recordReviewLabAttempt(result);
+    if (passed) removeReviewLabDraft(task.id);
+    reviewLabLastResult = result;
+    reviewLabSessionMessage = infrastructureFailure
+        ? "Environment check failed; this was not counted as a student attempt."
+        : passed
+        ? "Challenge evidence accepted and saved."
+        : "Attempt saved. Revise the highlighted evidence and try again.";
+    renderReviewLab();
+    renderDashboard();
+}
+
+function getReviewOptionLabel(options, id) {
+    return options.find(option => option.id === id)?.label || id;
+}
+
+function getReviewOptionFeedback(options, id) {
+    return options.find(option => option.id === id)?.feedback || "Compare this choice directly with the stated contract.";
+}
+
+function getReviewNextAction(result) {
+    if (result.engineError) {
+        return /Python 3 is not available|No installed Python/i.test(result.engineError)
+            ? "Install Python 3 and confirm python --version or py -3 --version works, then evaluate again."
+            : "Fix the first syntax or runtime error shown below before changing any later logic.";
+    }
+    if (!result.issuePassed) return "Re-read the requirement one sentence at a time, then revise the issue choices using the explanations below.";
+    if (!result.testDesignPassed) return "Add the missing boundary evidence and remove any test whose expected result is unsupported by the contract.";
+    if (!result.runtimePassed) {
+        const failed = (result.tests || []).find(test => !test.passed);
+        return failed ? `Trace the case '${failed.name}' by hand, then revise the line that first produces ${failed.actual || "an error"}.` : "Run the repair against the stated boundary cases and revise the first failing behavior.";
+    }
+    if (!result.sourcePassed) return (result.sourceChecks || []).find(check => !check.passed)?.label || "Revise the code structure to meet the engineering constraint.";
+    if (!result.reasonPassed) return "Name the defect, identify the test that exposes it, and explain why the repaired logic now satisfies the contract.";
+    return "Move to the next challenge, or start a new attempt later to check that the reasoning remains independent.";
+}
+
+function renderReviewLabResult(result) {
+    if (!reviewResults) return;
+    if (!result) {
+        reviewResults.innerHTML = `
+            <div class="review-feedback-box">
+                Select the real defects and useful tests, repair the AI-generated code, then explain why your change satisfies the requirement. Evaluation accepts different correct implementations.
+            </div>
+        `;
+        return;
+    }
+
+    const task = getReviewLabTask(result.taskId);
+    const missingIssueIds = result.missingIssueIds || [];
+    const incorrectIssueIds = result.incorrectIssueIds || [];
+    const missingTestIds = result.missingTestIds || [];
+    const invalidTestIds = result.invalidTestIds || [];
+    const diagnosisDetails = [
+        ...missingIssueIds.map(id => `Missed: ${getReviewOptionLabel(task.issueOptions, id)} ${getReviewOptionFeedback(task.issueOptions, id)}`),
+        ...incorrectIssueIds.map(id => `Not a defect: ${getReviewOptionLabel(task.issueOptions, id)} ${getReviewOptionFeedback(task.issueOptions, id)}`)
+    ];
+    const testDetails = [
+        ...missingTestIds.map(id => `Missing evidence: ${getReviewOptionLabel(task.testOptions, id)} ${getReviewOptionFeedback(task.testOptions, id)}`),
+        ...invalidTestIds.map(id => `Invalid evidence: ${getReviewOptionLabel(task.testOptions, id)} ${getReviewOptionFeedback(task.testOptions, id)}`)
+    ];
+    const attemptCount = getReviewLabRecords().filter(record => record.taskId === task.id).length;
+    const showReference = !result.passed && !result.infrastructureFailure && attemptCount >= 3;
+
+    const scoreItems = [
+        { label: "Diagnosis", passed: result.issuePassed, detail: result.issuePassed ? "Real defects identified without false claims." : `${missingIssueIds.length} real issue(s) missed; ${incorrectIssueIds.length} false claim(s) selected.` },
+        { label: "Test Design", passed: result.testDesignPassed, detail: result.testDesignPassed ? "Required normal and boundary evidence selected." : `${missingTestIds.length} required test(s) missing; ${invalidTestIds.length} unsupported test(s) selected.` },
+        { label: "Executable Fix", passed: result.runtimePassed, detail: result.runtimePassed ? "All behavior checks passed." : "One or more normal or boundary checks failed." },
+        { label: "Code Structure", passed: result.sourcePassed, detail: result.sourcePassed ? "The repair meets the stated structural constraints." : result.sourceChecks.filter(check => !check.passed).map(check => check.label).join(" ") },
+        { label: "Reasoning", passed: result.reasonPassed, detail: result.reasonPassed ? "The explanation names task-specific reasoning and is detailed enough to review." : `Write at least 45 characters and refer to a relevant idea such as ${task.reasonKeywords.slice(0, 3).join(", ")}. A detailed 100-character explanation is also accepted.` }
+    ];
+
+    const testRows = result.tests.length
+        ? result.tests.map(test => `
+            <div class="review-test-result ${test.passed ? "pass" : ""}">
+                <strong>${test.passed ? "PASS" : "FIX"}</strong>
+                <span><strong>${escapeHtml(test.name)}</strong><br>${test.passed
+                    ? `Actual ${escapeHtml(test.actual)} matched expected ${escapeHtml(test.expected)}.`
+                    : escapeHtml(test.error || `Actual ${test.actual}; expected ${test.expected}.`)}</span>
+            </div>
+        `).join("")
+        : `<div class="review-test-result"><strong>FIX</strong><span>${escapeHtml(result.engineError || "No test evidence was returned. Check the Python syntax and try again.")}</span></div>`;
+
+    reviewResults.innerHTML = `
+        <div class="review-result-heading">
+            <strong>${result.infrastructureFailure ? "Environment not ready" : result.passed ? "Review evidence accepted" : "Revision still needed"}</strong>
+            <span>${result.infrastructureFailure ? "Not counted as an attempt" : `Attempt ${result.attemptNumber}`} · ${new Date(result.timestamp).toLocaleString()}</span>
+        </div>
+        <div class="review-feedback-box ${result.passed ? "passed" : "failed"}">
+            ${result.infrastructureFailure
+                ? "The execution service could not verify Python code. Your draft remains saved, and no student evidence or failed attempt was recorded."
+                : result.passed
+                ? "You demonstrated that the repair matches the requirement and supported it with review evidence. This challenge is now recorded on the Dashboard."
+                : "Use the evidence below to revise one decision at a time. A different implementation is welcome when it passes the behavior and structure checks."}
+        </div>
+        <div class="review-score-grid">
+            ${scoreItems.map(item => `
+                <div class="review-score-item ${item.passed ? "pass" : "fix"}">
+                    <strong>${item.passed ? "PASS" : "FIX"} · ${escapeHtml(item.label)}</strong>
+                    <span>${escapeHtml(item.detail)}</span>
+                </div>
+            `).join("")}
+        </div>
+        ${diagnosisDetails.length || testDetails.length ? `
+            <div class="review-feedback-box failed">
+                <strong>Decision feedback</strong>
+                ${[...diagnosisDetails, ...testDetails].map(detail => `<p>${escapeHtml(detail)}</p>`).join("")}
+            </div>
+        ` : ""}
+        <div class="review-test-results">${testRows}</div>
+        <div class="review-feedback-box review-next-action">
+            <strong>Next action</strong>
+            <p>${escapeHtml(getReviewNextAction(result))}</p>
+        </div>
+        ${showReference ? `
+            <div class="review-feedback-box failed">
+                <strong>Reference repair after three attempts</strong>
+                <p>This is one valid answer, not the only acceptable wording or implementation.</p>
+                <pre>${escapeHtml(task.solution)}</pre>
+                <p>${task.issueOptions.filter(option => option.correct).map(option => escapeHtml(option.feedback)).join(" ")}</p>
+            </div>
+        ` : ""}
+    `;
+}
+
+function renderReviewHistory() {
+    if (!reviewHistory) return;
+    const attempts = getReviewLabTaskAttempts().slice(-6).reverse();
+    if (!attempts.length) {
+        reviewHistory.innerHTML = `<div class="review-history-empty">No evaluated attempt yet. Draft changes are saved separately and do not count as evidence until Evaluate Review & Fix is clicked.</div>`;
+        return;
+    }
+
+    reviewHistory.innerHTML = attempts.map(({ record, storageIndex }) => {
+        const signals = [
+            ["Diagnosis", record.issuePassed],
+            ["Tests", record.testDesignPassed],
+            ["Fix", record.runtimePassed],
+            ["Structure", record.sourcePassed],
+            ["Reason", record.reasonPassed]
+        ];
+        return `
+            <div class="review-history-row ${record.passed ? "passed" : ""}">
+                <strong>#${record.attemptNumber || storageIndex + 1}</strong>
+                <div>
+                    <strong>${record.passed ? "Evidence accepted" : "Revision needed"}</strong>
+                    <div class="review-history-meta">${new Date(record.timestamp).toLocaleString()}</div>
+                </div>
+                ${signals.map(([label, passed]) => `<span class="review-history-signal ${passed ? "pass" : ""}">${passed ? "PASS" : "FIX"}<br>${label}</span>`).join("")}
+                <button class="secondary-btn review-history-open" type="button" data-review-record-index="${storageIndex}">Review</button>
+            </div>
+        `;
+    }).join("");
+}
+
+function loadReviewLabAttempt(storageIndex) {
+    const record = getReviewLabRecords()[Number(storageIndex)];
+    if (!record) return;
+    if (reviewLabLoadedTaskId === activeReviewLabTaskId) saveReviewLabDraft();
+
+    activeReviewLabTaskId = getReviewLabTask(record.taskId).id;
+    localStorage.setItem(REVIEW_LAB_ACTIVE_KEY, activeReviewLabTaskId);
+    writeReviewLabDraft(activeReviewLabTaskId, {
+        code: record.submittedCode || getReviewLabTask(record.taskId).aiCode,
+        reason: record.reason || "",
+        selectedIssueIds: record.selectedIssueIds || [],
+        selectedTestIds: record.selectedTestIds || [],
+        updatedAt: new Date().toISOString()
+    });
+    reviewLabLoadedTaskId = null;
+    reviewLabLastResult = record;
+    reviewLabSessionMessage = `Reviewing attempt ${record.attemptNumber || ""}. Edit it or start a new attempt.`;
+    renderReviewLab();
+}
+
+function reviewLastLabAttempt() {
+    const attempts = getReviewLabTaskAttempts();
+    if (!attempts.length) return;
+    loadReviewLabAttempt(attempts[attempts.length - 1].storageIndex);
+}
+
+function startNewReviewLabAttempt() {
+    removeReviewLabDraft();
+    reviewLabLoadedTaskId = null;
+    reviewLabLastResult = null;
+    reviewLabSessionMessage = getReviewLabProgress().has(activeReviewLabTaskId)
+        ? "New review attempt started. Previous mastery evidence remains in history."
+        : "New attempt started from the original AI-generated code.";
+    renderReviewLab();
+}
+
+function pauseReviewLab() {
+    saveReviewLabDraft({ announce: true });
+    setActiveView("practice");
+}
+
+function openNextReviewLabTask() {
+    const progress = getReviewLabProgress();
+    const currentIndex = REVIEW_LAB_TASKS.findIndex(task => task.id === activeReviewLabTaskId);
+    const nextIncomplete = REVIEW_LAB_TASKS.find((task, index) => index > currentIndex && !progress.has(task.id))
+        || REVIEW_LAB_TASKS.find(task => !progress.has(task.id));
+    const nextTask = nextIncomplete || REVIEW_LAB_TASKS[(currentIndex + 1) % REVIEW_LAB_TASKS.length];
+    setActiveReviewLabTask(nextTask.id);
 }
 
 function setActiveLesson(id, shouldLog = true) {
@@ -5167,46 +6704,49 @@ function getBlankTaskSummary(task) {
 
 function getPracticeActionSteps(task, activeMissionIndex) {
     const goal = getGoalCheckSummary(task);
-    const levelNumber = activeMissionIndex >= 0 ? activeMissionIndex + 1 : null;
-    const levelPrefix = levelNumber ? `Level ${levelNumber}` : "This level";
+    const path = getPracticePath(activeLessonId);
+    const levelNumber = activeMissionIndex >= 0 ? path[activeMissionIndex]?.level : null;
+    const levelPrefix = levelNumber !== null && levelNumber !== undefined ? `Level ${levelNumber}` : "This level";
+
+    if (task?.taskType === "level-0-choice") {
+        return [
+            `${levelPrefix}: use the Code Block Gate below Code. Fill every blank with the block that matches its label.`,
+            `Key check: avoid syntax traps. Python keywords such as for, if, def, and while are not variable names or expression values.`
+        ];
+    }
 
     if (task?.taskType === "level-1-blank") {
         return [
-            `${levelPrefix} is a fill-in task: type the missing Python fragment in Fill-in-the-blank gate, not directly in Code.`,
-            `Fill: ${getBlankTaskSummary(task)}.`,
-            `Then click Compile & Run. The level passes when ${goal}.`
+            `${levelPrefix}: type the missing fragment in the Fill-in-the-blank gate below Code.`,
+            `Fill: ${getBlankTaskSummary(task)}. The level passes when ${goal}.`
         ];
     }
 
     if (task?.taskType === "level-2-line") {
         return [
-            `${levelPrefix} asks for one complete Python line.`,
-            `Replace the placeholder line such as pass with one valid line; keep the surrounding starter code.`,
-            `Click Compile & Run. The level passes when ${goal}.`
+            `${levelPrefix}: replace only the placeholder line, such as pass, with one complete Python line.`,
+            `Keep the surrounding starter code. The level passes when ${goal}.`
         ];
     }
 
     if (task?.taskType === "level-3-program") {
         return [
-            `${levelPrefix} asks you to write the complete working logic.`,
-            `Use the comments as the goal, replace pass, and create any needed variables, loops, conditions, or function calls.`,
-            `Click Compile & Run. The trace must prove ${goal}.`
+            `${levelPrefix}: write the complete working logic from the starter comments.`,
+            `Create the needed variables, loops, conditions, or calls. The trace must prove ${goal}.`
         ];
     }
 
     if (task?.taskType === "level-4-refactor") {
         return [
-            `${levelPrefix} is a code-quality task.`,
-            `Keep the same final result, but replace repeated or noisy code with the topic's main pattern.`,
-            `Click Compile & Run. The level passes when ${goal} and the quality checks accept the refined code.`
+            `${levelPrefix}: keep the same result, but replace repeated/noisy code with the topic pattern.`,
+            `The level passes when ${goal} and the quality check accepts the refined code.`
         ];
     }
 
     if (task?.taskType === "level-5-debug") {
         return [
-            `${levelPrefix} is Debug Detective.`,
-            `Find why the starter code breaks, repair the real cause, and avoid writing only a direct final answer.`,
-            `Click Compile & Run. The level passes when the program runs cleanly and ${goal}.`
+            `${levelPrefix}: find the real bug, repair it, and avoid a direct final-answer shortcut.`,
+            `The level passes when the program runs cleanly and ${goal}.`
         ];
     }
 
@@ -5220,10 +6760,10 @@ function renderPracticeActionGuide(task, activeMissionIndex, currentCompleted) {
     const steps = getPracticeActionSteps(task, activeMissionIndex);
     return `
         <div class="mission-action-guide">
-            <div class="mission-action-title">${currentCompleted ? "Review this level" : "What to do now"}</div>
+            <div class="mission-action-title">${currentCompleted ? "Review hint" : "Required hint"}</div>
             ${steps.map((step, index) => `
                 <div class="mission-action-row">
-                    <strong>${index + 1}</strong>
+                    <strong>${index === 0 ? "Do" : "Hint"}</strong>
                     <span>${escapeHtml(step)}</span>
                 </div>
             `).join("")}
@@ -5251,7 +6791,6 @@ function renderMissionModePanel() {
     const meta = getTaskMeta(activeTask);
     const currentMission = path[activeMissionIndex] || null;
     const currentCompleted = isMissionCompleted(currentMission, completed);
-    const showWalkthrough = activeMissionIndex <= 0 && !isMissionCompleted(path[0], completed);
     const missionCards = path.map((mission, index) => {
         const task = getTasksForTopic(mission.topicId).find(item => item.id === mission.taskId);
         const unlocked = isMissionLevelAccessible(index, completed, path);
@@ -5261,15 +6800,14 @@ function renderMissionModePanel() {
         return `
             <button class="mission-card ${active ? "active" : ""} ${missionCompleted ? "completed" : ""}" type="button"
                 data-mission-topic="${escapeHtml(mission.topicId)}" data-mission-task="${escapeHtml(mission.taskId)}" ${unlocked ? "" : "disabled"}>
-                <strong>Level ${index + 1}: ${escapeHtml(mission.stage)}</strong>
+                <strong>Level ${mission.level}: ${escapeHtml(mission.stage)}</strong>
                 <span>${escapeHtml(task?.title || "Practice task")}</span>
                 <span>${state}</span>
             </button>
         `;
     }).join("");
 
-    const activeLevelText = activeMissionIndex >= 0 ? `Level ${activeMissionIndex + 1}` : "Selected practice";
-    const totalLevels = Math.max(path.length, 1);
+    const activeLevelText = activeMissionIndex >= 0 ? `Level ${path[activeMissionIndex]?.level}` : "Selected practice";
     const nextReadyMission = path.find((mission, index) => {
         if (index <= activeMissionIndex) return false;
         return !isMissionCompleted(mission, completed) && isMissionLevelAccessible(index, completed, path);
@@ -5278,22 +6816,23 @@ function renderMissionModePanel() {
         ? nextReadyMission
             ? "This level is already completed. Click the next Ready level card to continue."
             : "This topic path is complete. Open Dashboard to review your growth."
-        : "This level is not completed yet. Edit the code, then click Compile & Run.";
+        : activeTask?.taskType === "level-0-choice"
+            ? "Not completed yet. Fill the Code Block Gate, then click Compile & Run."
+            : activeTask?.taskType === "level-1-blank"
+                ? "Not completed yet. Fill the blank gate, then click Compile & Run."
+                : "Not completed yet. Edit Code, then click Compile & Run.";
 
     return `
         <div class="mode-panel">
             <div class="mission-current">
                 <strong>${escapeHtml(LESSONS[activeLessonId]?.title || "Practice")} - ${escapeHtml(activeLevelText)}: ${escapeHtml(path[activeMissionIndex]?.stage || "Practice")}</strong>
-                <span>${escapeHtml(activeTask?.title || "Practice task")}</span>
-                <span>${escapeHtml(activeTask?.objective || "Make the program meet the task goal.")}</span>
-                <span>${escapeHtml(completeLine)}</span>
+                <span><b>Task:</b> ${escapeHtml(activeTask?.objective || "Make the program meet the task goal.")}</span>
+                <span><b>Status:</b> ${escapeHtml(completeLine)}</span>
             </div>
             ${renderPracticeActionGuide(activeTask, activeMissionIndex, currentCompleted)}
-            ${activeMissionIndex <= 0 ? renderMissionRules("mission-panel-rules", totalLevels) : ""}
             ${renderMissionRunFeedback(lastLessonResult)}
-            ${activeMissionIndex === 4 ? renderDebugRunFeedback(lastLessonResult, activeTask, meta) : ""}
-            ${activeMissionIndex === 4 ? renderDebugDetectiveActivity(meta) : ""}
-            ${showWalkthrough ? renderWalkthroughControls("mission", { compact: true }) : ""}
+            ${activeTask?.taskType === "level-5-debug" ? renderDebugRunFeedback(lastLessonResult, activeTask, meta) : ""}
+            ${activeTask?.taskType === "level-5-debug" ? renderDebugDetectiveActivity(meta) : ""}
             <div class="mission-grid">${missionCards}</div>
         </div>
     `;
@@ -5302,8 +6841,8 @@ function renderMissionModePanel() {
 function renderMissionRules(extraClass = "", totalLevels = getPracticePath(activeLessonId).length || 5) {
     return `
         <div class="mission-rules ${escapeHtml(extraClass)}">
-            <div><strong>Goal:</strong> complete Level 1 to Level ${totalLevels} in order for the selected topic.</div>
-            <div><strong>How to complete a level:</strong> fill the key expression or edit Code, then click Compile & Run.</div>
+            <div><strong>Goal:</strong> complete Level 0 to Level ${Math.max(5, totalLevels - 1)} in order for the selected topic.</div>
+            <div><strong>How to complete a level:</strong> choose code blocks, fill the key expression, or edit Code, then click Compile & Run.</div>
             <div><strong>Auto-check:</strong> the app marks a level Completed automatically when Compile & Run meets all task checks.</div>
         </div>
     `;
@@ -5311,7 +6850,7 @@ function renderMissionRules(extraClass = "", totalLevels = getPracticePath(activ
 
 function renderMissionRunFeedback(result) {
     if (!result) {
-        return `<div class="mission-feedback">After you click Compile & Run, this box will say whether the current level passed or what still needs fixing.</div>`;
+        return "";
     }
 
     const statusClass = result.passed ? "passed" : "failed";
@@ -5742,6 +7281,54 @@ function renderDashboard() {
             ${topicTrees.map(renderTopicTree).join("")}
         </div>
     `;
+
+    renderReviewDashboardEvidence();
+    if (typeof renderQualityDashboardEvidence === "function") renderQualityDashboardEvidence();
+}
+
+function renderReviewDashboardEvidence() {
+    if (!dashboardReviewEvidence) return;
+
+    const records = getReviewLabRecords();
+    const completed = getReviewLabProgress();
+    const abilities = [
+        { id: "diagnosis", label: "Defect diagnosis", criterion: record => record.issuePassed },
+        { id: "testing", label: "Test design", criterion: record => record.testDesignPassed },
+        { id: "correctness", label: "Behavioral correctness", criterion: record => record.runtimePassed },
+        { id: "boundaries", label: "Boundary reasoning", criterion: record => record.testDesignPassed && record.runtimePassed },
+        { id: "maintainability", label: "Maintainable repair", criterion: record => record.sourcePassed && record.runtimePassed },
+        { id: "reliability", label: "Reliability and error handling", criterion: record => record.issuePassed && record.runtimePassed },
+        { id: "efficiency", label: "Performance reasoning", criterion: record => record.sourcePassed && record.runtimePassed }
+    ];
+
+    const rows = abilities.map(ability => {
+        const relevant = records.filter(record => (record.abilities || []).includes(ability.id));
+        const evidenceCount = relevant.filter(ability.criterion).length;
+        const passedChallenges = new Set(relevant.filter(record => record.passed).map(record => record.taskId)).size;
+        const state = passedChallenges > 0 ? "Demonstrated" : evidenceCount > 0 ? "Developing" : relevant.length ? "Needs revision" : "Not observed";
+        const evidence = relevant.length
+            ? `${evidenceCount} successful evidence checks across ${relevant.length} attempt${relevant.length === 1 ? "" : "s"}.`
+            : "Complete a Review Lab challenge to create evidence.";
+        return { ...ability, state, evidence };
+    });
+
+    dashboardReviewEvidence.innerHTML = `
+        <div class="review-dashboard">
+            <div class="review-dashboard-summary">
+                <strong>${completed.size}/${REVIEW_LAB_TASKS.length} review challenges demonstrated.</strong>
+                These states come from the student's diagnosis, chosen tests, executable repair, and written justification, not from activity time alone.
+            </div>
+            <div class="review-ability-list">
+                ${rows.map(row => `
+                    <div class="review-ability-row">
+                        <strong>${escapeHtml(row.label)}</strong>
+                        <span>${escapeHtml(row.evidence)}</span>
+                        <span class="review-evidence-state">${escapeHtml(row.state)}</span>
+                    </div>
+                `).join("")}
+            </div>
+        </div>
+    `;
 }
 
 function renderQuestionBank() {
@@ -5755,12 +7342,90 @@ function renderQuestionBank() {
 
     questionBankContent.innerHTML = `
         <div class="question-bank">
+            ${renderQuestionBankEditor()}
             <div class="bank-toolbar">
-                <span><strong>Full question bank:</strong> every stored task is shown here. Dashboard only shows the current training batch.</span>
+                <span><strong>Full question bank:</strong> click any task to inspect and edit it. Later sets are labeled as longer, harder versions for teacher planning.</span>
                 <button class="secondary-btn bank-refresh-topic" type="button" data-bank-refresh-topic="${escapeHtml(activeLessonId)}">Update Current Topic</button>
             </div>
             ${topicCards}
         </div>
+    `;
+}
+
+function getQuestionBankTask(topicId, taskId) {
+    return getQuestionBankForTopic(topicId).find(task => task.id === taskId) || null;
+}
+
+function renderQuestionBankEditor() {
+    if (!activeBankEditorTask) return "";
+    const { topicId, taskId } = activeBankEditorTask;
+    const task = getQuestionBankTask(topicId, taskId);
+    if (!task) return "";
+
+    const snapshot = getEditableTaskSnapshot(task);
+    const level = getTaskLevelNumber(task);
+    const difficulty = task.difficulty || getDifficultyMeta(task.setOrder || 1, level, task);
+    const inCurrentBatch = isTaskInCurrentBatch(topicId, task.id);
+    const modifiedText = task.teacherModified
+        ? `Teacher edited${task.teacherUpdatedAt ? ` on ${formatReportDate(task.teacherUpdatedAt)}` : ""}`
+        : "Default bank task";
+
+    return `
+        <section class="bank-editor" id="bank-editor">
+            <div class="bank-editor-head">
+                <div>
+                    <span class="bank-editor-kicker">Teacher Task Editor</span>
+                    <h2>${escapeHtml(LESSONS[topicId]?.title || topicId)} / Level ${level}: ${escapeHtml(task.title || "Practice task")}</h2>
+                    <p>${escapeHtml(modifiedText)} | ${escapeHtml(task.setTitle || task.setId || "Question set")} | ${escapeHtml(difficulty.label)} | ${difficulty.estimatedLines} code line${difficulty.estimatedLines === 1 ? "" : "s"}</p>
+                </div>
+                <button class="secondary-btn bank-editor-close" type="button">Close</button>
+            </div>
+            <div class="bank-editor-note">
+                Edit the teacher-facing task fields below. Saving stores a local override in this browser and Practice will use the edited task immediately.
+            </div>
+            <form class="bank-editor-form" data-editor-topic="${escapeHtml(topicId)}" data-editor-task="${escapeHtml(task.id)}">
+                <label>Title
+                    <input class="bank-editor-input" name="title" value="${escapeHtml(snapshot.title)}">
+                </label>
+                <label>Objective / Student instruction
+                    <textarea class="bank-editor-textarea short" name="objective">${escapeHtml(snapshot.objective)}</textarea>
+                </label>
+                <div class="bank-editor-grid">
+                    <label>Expected variable
+                        <input class="bank-editor-input" name="variable" value="${escapeHtml(snapshot.variable)}">
+                    </label>
+                    <label>Expected value
+                        <input class="bank-editor-input" name="expected" value="${escapeHtml(snapshot.expected)}">
+                    </label>
+                    <label>Function hints, comma-separated
+                        <input class="bank-editor-input" name="functionHints" value="${escapeHtml(snapshot.functionHints)}">
+                    </label>
+                </div>
+                <label>Starter code
+                    <textarea class="bank-editor-textarea code" name="starterCode">${escapeHtml(snapshot.starterCode)}</textarea>
+                </label>
+                <label>One valid solution
+                    <textarea class="bank-editor-textarea code" name="solution">${escapeHtml(snapshot.solution)}</textarea>
+                </label>
+                <div class="bank-editor-grid two">
+                    <label>Blanks JSON
+                        <textarea class="bank-editor-textarea json" name="blanksJson">${escapeHtml(snapshot.blanksJson)}</textarea>
+                    </label>
+                    <label>Choices JSON
+                        <textarea class="bank-editor-textarea json" name="choicesJson">${escapeHtml(snapshot.choicesJson)}</textarea>
+                    </label>
+                </div>
+                <label>Debug metadata JSON
+                    <textarea class="bank-editor-textarea json" name="debugJson">${escapeHtml(snapshot.debugJson)}</textarea>
+                </label>
+                <div class="bank-editor-feedback" id="bank-editor-feedback"></div>
+                <div class="bank-editor-actions">
+                    <button class="btn bank-editor-save" type="button">Save Teacher Edit</button>
+                    <button class="secondary-btn bank-editor-use" type="button">${inCurrentBatch ? "Open in Practice" : "Use in Current Batch"}</button>
+                    <button class="secondary-btn bank-editor-reset" type="button">Reset to Default</button>
+                </div>
+            </form>
+        </section>
     `;
 }
 
@@ -5800,7 +7465,7 @@ function renderQuestionBankLevel(topicId, group, completed = getCompletedMission
     return `
         <section class="bank-level">
             <div class="bank-level-head">
-                <span>Level ${group.level}: ${escapeHtml(LEVEL_STAGE_LABELS[group.level - 1] || `Level ${group.level}`)}</span>
+                <span>Level ${group.level}: ${escapeHtml(getLevelStageLabel(group.level))}</span>
                 <span>${currentTasks.length ? `${currentCompleted}/${currentTasks.length} current` : "Not in current set"}${levelComplete ? " | complete" : ""}</span>
             </div>
             <div class="bank-task-grid">
@@ -5814,6 +7479,7 @@ function renderQuestionBankTask(topicId, task, completed = getCompletedMissions(
     const inCurrentBatch = isTaskInCurrentBatch(topicId, task.id);
     const completedInBatch = inCurrentBatch && isTaskCompletedInCurrentBatch(topicId, task.id, completed);
     const level = getTaskLevelNumber(task);
+    const difficulty = task.difficulty || getDifficultyMeta(task.setOrder || 1, level, task);
     const status = completedInBatch
         ? "Completed in current set"
         : inCurrentBatch
@@ -5821,13 +7487,155 @@ function renderQuestionBankTask(topicId, task, completed = getCompletedMissions(
             : "Stored in full bank";
 
     return `
-        <div class="bank-task ${inCurrentBatch ? "current-batch" : ""} ${completedInBatch ? "completed" : ""}">
+        <button class="bank-task ${inCurrentBatch ? "current-batch" : ""} ${completedInBatch ? "completed" : ""} ${task.teacherModified ? "teacher-modified" : ""}" type="button"
+            data-bank-topic="${escapeHtml(topicId)}" data-bank-task="${escapeHtml(task.id)}">
             <strong>Level ${level}: ${escapeHtml(task.title || "Practice task")}</strong>
-            <span>${escapeHtml(task.setTitle || task.setId || "Question set")}</span>
-            <span>${escapeHtml(status)}</span>
+            <span>${escapeHtml(task.setTitle || task.setId || "Question set")} | ${escapeHtml(difficulty.label)} | ${difficulty.estimatedLines} lines</span>
+            <span>${escapeHtml(difficulty.complexityNote)}</span>
+            <span>${escapeHtml(status)}${task.teacherModified ? " | Teacher edited" : ""}</span>
             <span>${escapeHtml(task.taskType || "practice")}</span>
-        </div>
+        </button>
     `;
+}
+
+function openQuestionBankEditor(topicId, taskId) {
+    activeBankEditorTask = { topicId, taskId };
+    renderQuestionBank();
+    window.setTimeout(() => {
+        document.getElementById("bank-editor")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
+}
+
+function closeQuestionBankEditor() {
+    activeBankEditorTask = null;
+    renderQuestionBank();
+}
+
+function getBankEditorForm() {
+    return questionBankContent?.querySelector(".bank-editor-form") || null;
+}
+
+function setBankEditorFeedback(message, kind = "muted") {
+    const feedback = document.getElementById("bank-editor-feedback");
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.className = `bank-editor-feedback ${kind}`;
+}
+
+function collectTeacherTaskOverride(form) {
+    const topicId = form.dataset.editorTopic;
+    const taskId = form.dataset.editorTask;
+    const task = getQuestionBankTask(topicId, taskId);
+    if (!task) throw new Error("This task no longer exists in the question bank.");
+
+    const data = new FormData(form);
+    const blanks = parseTeacherJsonField(data.get("blanksJson"), task.blanks || [], "Blanks JSON");
+    const choices = parseTeacherJsonField(data.get("choicesJson"), task.choices || [], "Choices JSON");
+    const debug = parseTeacherJsonField(data.get("debugJson"), task.debug || null, "Debug metadata JSON");
+
+    return {
+        topicId,
+        taskId,
+        override: {
+            title: String(data.get("title") || "").trim() || task.title,
+            objective: String(data.get("objective") || "").trim() || task.objective,
+            starterCode: String(data.get("starterCode") || ""),
+            solution: String(data.get("solution") || "").trim() || stripTaskFixPrefix(task.solution || ""),
+            variable: String(data.get("variable") || "").trim(),
+            expected: String(data.get("expected") || "").trim(),
+            functionHints: normalizeFunctionHints(data.get("functionHints")),
+            blanks,
+            choices,
+            debug,
+            updatedAt: new Date().toISOString()
+        }
+    };
+}
+
+function saveTeacherTaskEdit() {
+    const form = getBankEditorForm();
+    if (!form) return;
+
+    try {
+        const { topicId, taskId, override } = collectTeacherTaskOverride(form);
+        const overrides = getTeacherTaskOverrides();
+        overrides[getTeacherOverrideKey(topicId, taskId)] = override;
+        writeTeacherTaskOverrides(overrides);
+        logStudentAction("button", "Save Teacher Task Edit", {
+            editedTopicId: topicId,
+            editedTaskId: taskId
+        });
+
+        if (activeLessonId === topicId && activeTaskId === taskId) {
+            setActiveTask(taskId, false);
+        }
+        renderDashboard();
+        renderQuestionBank();
+        setBankEditorFeedback("Saved. Practice, Dashboard, and Export Report will use this edited task.", "good");
+    } catch (error) {
+        setBankEditorFeedback(error.message, "error");
+    }
+}
+
+function resetTeacherTaskEdit() {
+    const form = getBankEditorForm();
+    if (!form) return;
+    const topicId = form.dataset.editorTopic;
+    const taskId = form.dataset.editorTask;
+    const overrides = getTeacherTaskOverrides();
+    delete overrides[getTeacherOverrideKey(topicId, taskId)];
+    writeTeacherTaskOverrides(overrides);
+    logStudentAction("button", "Reset Teacher Task Edit", {
+        editedTopicId: topicId,
+        editedTaskId: taskId
+    });
+
+    if (activeLessonId === topicId && activeTaskId === taskId) {
+        setActiveTask(taskId, false);
+    }
+    renderDashboard();
+    renderQuestionBank();
+    setBankEditorFeedback("Reset to the default bank task.", "muted");
+}
+
+function useBankTaskInCurrentBatch(topicId, taskId) {
+    const task = getQuestionBankTask(topicId, taskId);
+    if (!task) return;
+    const batch = getTopicBatch(topicId);
+    const bank = getQuestionBankForTopic(topicId);
+    const taskMap = new Map(bank.map(item => [item.id, item]));
+    const targetLevel = getTaskLevelNumber(task);
+    const nextIds = (batch.taskIds?.length ? batch.taskIds : getDefaultBatchTaskIds(topicId))
+        .filter(id => taskMap.has(id));
+    const sameLevelIndex = nextIds.findIndex(id => getTaskLevelNumber(taskMap.get(id)) === targetLevel);
+    if (sameLevelIndex >= 0) {
+        nextIds[sameLevelIndex] = taskId;
+    } else {
+        nextIds.push(taskId);
+    }
+    const sortedIds = [...new Set(nextIds)]
+        .sort((a, b) => getTaskLevelNumber(taskMap.get(a)) - getTaskLevelNumber(taskMap.get(b)));
+    const batches = getTopicBatches();
+    batches[topicId] = {
+        ...batch,
+        batchId: `teacher-${Date.now()}`,
+        setId: "teacher-selected",
+        setTitle: "Teacher selected set",
+        taskIds: sortedIds,
+        refreshedAt: new Date().toISOString(),
+        teacherSelected: true
+    };
+    writeTopicBatches(batches);
+
+    activeLearningMode = "mission";
+    modeSelect.value = "mission";
+    setActiveLesson(topicId, false);
+    setActiveTask(taskId, false);
+    setActiveView("practice");
+    logStudentAction("button", "Use Bank Task In Current Batch", {
+        selectedTopicId: topicId,
+        selectedTaskId: taskId
+    });
 }
 
 function renderPracticePatternTree(topicTrees) {
@@ -6059,7 +7867,7 @@ function buildTopicTree(topicId, completed = getCompletedMissions()) {
         if (!levelMap.has(levelNumber)) {
             const level = {
                 level: levelNumber,
-                stage: LEVEL_STAGE_LABELS[levelNumber - 1] || `Level ${levelNumber}`,
+                stage: getLevelStageLabel(levelNumber),
                 tasks: []
             };
             levelMap.set(levelNumber, level);
@@ -6114,7 +7922,7 @@ function buildTopicTree(topicId, completed = getCompletedMissions()) {
 function getTaskLevelNumber(task, fallbackIndex = 0) {
     const typeMatch = String(task?.taskType || "").match(/level-(\d+)/i);
     if (typeMatch) return Number(typeMatch[1]);
-    const idMatch = String(task?.id || "").match(/-l(\d+)-/i);
+    const idMatch = String(task?.id || "").match(/-l(\d+)(?:-|$)/i);
     if (idMatch) return Number(idMatch[1]);
     return fallbackIndex + 1;
 }
@@ -6233,6 +8041,7 @@ function canCompileActiveTask() {
 
 function renderBlankRequirements(task) {
     if (!task?.blanks?.length) return "";
+    if (isLevelZeroTask(task)) return renderLevelZeroChoiceGate(task);
 
     const missingBlanks = getMissingBlanks(task);
     const missingTokens = new Set(missingBlanks.map(blank => blank.token));
@@ -6255,6 +8064,81 @@ function renderBlankRequirements(task) {
             <div class="blank-title">Fill-in-the-blank gate</div>
             <div class="blank-help">Type each answer here. Code updates automatically, so you do not need to delete ${escapeHtml(task.blanks[0]?.token || "the blank token")} in the editor. For strings, include quotes, for example "Ada".</div>
             ${blankRows}
+        </div>
+    `;
+}
+
+function getLevelZeroCriterionByToken(result, token) {
+    return (result?.criteria || []).find(item => item.type === "blankChoice" && item.token === token) || null;
+}
+
+function renderLevelZeroChoiceGate(task) {
+    const attemptKey = getLevelZeroAttemptKey(activeLessonId, task);
+    const attempts = levelZeroAttemptCounts[attemptKey] || 0;
+    const answersRevealed = revealedLevelZeroAnswers.has(attemptKey);
+    const usedValues = new Set(task.blanks.map(blank => normalizeCodeChoice(getBlankValue(blank.token))).filter(Boolean));
+    const choiceButtons = (task.choices || []).map(choice => {
+        const used = usedValues.has(normalizeCodeChoice(choice.code));
+        return `
+            <button class="choice-chip ${used ? "used" : ""}" type="button"
+                draggable="${used ? "false" : "true"}"
+                data-choice-code="${escapeHtml(choice.code)}"
+                ${used ? "disabled" : ""}>
+                <code>${escapeHtml(choice.code)}</code>
+            </button>
+        `;
+    }).join("");
+
+    const blankRows = task.blanks.map(blank => {
+        const value = getBlankValue(blank.token);
+        const criterion = getLevelZeroCriterionByToken(lastLessonResult, blank.token);
+        const revealedCorrect = answersRevealed && normalizeCodeChoice(value) === normalizeCodeChoice(blank.answer);
+        const statusClass = revealedCorrect ? "correct" : criterion ? (criterion.passed ? "correct" : "wrong") : value ? "filled" : "empty";
+        const statusText = revealedCorrect ? "Answer shown" : criterion ? (criterion.passed ? "Green light" : "Red light") : value ? "selected" : "drop here";
+        const explanation = revealedCorrect
+            ? `<div class="choice-slot-feedback good">${escapeHtml(blank.explanation || "This block fits the blank.")}</div>`
+            : criterion && !criterion.passed
+            ? `<div class="choice-slot-feedback">${escapeHtml(criterion.fix || blank.hint || "Choose a different block and run again.")}</div>`
+            : criterion?.passed
+                ? `<div class="choice-slot-feedback good">${escapeHtml(blank.explanation || "This block fits the blank.")}</div>`
+                : "";
+        return `
+            <div class="choice-slot-row ${statusClass}">
+                <div class="choice-slot-meta">
+                    <strong>${escapeHtml(blank.token)}</strong>
+                    <span>${escapeHtml(blank.label)}</span>
+                </div>
+                <div class="choice-drop-zone" data-blank-token="${escapeHtml(blank.token)}">
+                    <code>${value ? escapeHtml(value) : "Drop code block here"}</code>
+                </div>
+                <button class="mini-fix-button choice-clear-button" type="button" data-blank-token="${escapeHtml(blank.token)}" ${value ? "" : "disabled"}>Clear</button>
+                <span class="choice-status">${escapeHtml(statusText)}</span>
+                ${explanation}
+            </div>
+        `;
+    }).join("");
+
+    const answerPanel = answersRevealed
+        ? `<div class="level-zero-answer-panel">
+            <strong>Answer shown after 3 attempts</strong>
+            ${task.blanks.map(blank => `
+                <div><code>${escapeHtml(blank.token)}</code> = <code>${escapeHtml(blank.answer)}</code><span>${escapeHtml(blank.explanation)}</span></div>
+            `).join("")}
+        </div>`
+        : "";
+
+    return `
+        <div class="blank-panel level-zero-panel" id="blank-panel">
+            <div class="blank-title">Level 0 Code Block Gate</div>
+            <div class="blank-help">Use the labels beside each blank to choose the right block. Drag a block into a blank, or click a block to place it in the next empty blank. Wrong choices turn red after Compile & Run. Attempts: ${attempts}/3.</div>
+            <div class="choice-workspace">
+                <div class="choice-slots">${blankRows}</div>
+                <div class="choice-bank" aria-label="Code block choices">
+                    <div class="choice-bank-title">Code blocks</div>
+                    <div class="choice-chip-grid">${choiceButtons}</div>
+                </div>
+            </div>
+            ${answerPanel}
         </div>
     `;
 }
@@ -6373,6 +8257,34 @@ function recordLearningProgress(task, result) {
     renderQuestionBank();
 }
 
+function handleLevelZeroAttemptResult(task, result) {
+    if (!isLevelZeroTask(task)) return;
+
+    const key = getLevelZeroAttemptKey(activeLessonId, task);
+    if (result?.passed) {
+        levelZeroAttemptCounts[key] = 0;
+        revealedLevelZeroAnswers.delete(key);
+        return;
+    }
+
+    const nextCount = Math.min(3, (levelZeroAttemptCounts[key] || 0) + 1);
+    levelZeroAttemptCounts[key] = nextCount;
+
+    if (nextCount >= 3) {
+        revealedLevelZeroAnswers.add(key);
+        logStudentAction("button", "Level 0 Answer Revealed", {
+            attemptsUsed: nextCount
+        });
+        task.blanks.forEach(blank => {
+            blankDraftValues[blank.token] = blank.answer;
+        });
+        codeInput.value = renderCodeWithBlankValues(task);
+        syncEditorRendering();
+        renderBlankSlot(task);
+        consoleOutput.innerHTML += `<div class="console-row trace-output-label">LEVEL 0 ANSWER</div><div class="console-row trace-explanation">Three attempts were used. The correct code blocks have been filled into Code. Read the explanations in the Level 0 gate, then click Compile & Run once more to verify the trace.</div>`;
+    }
+}
+
 function resetAllProgress() {
     localStorage.removeItem(MISSION_PROGRESS_KEY);
     localStorage.removeItem(SKILL_PROGRESS_KEY);
@@ -6384,9 +8296,18 @@ function resetAllProgress() {
     localStorage.removeItem("ssp_v6_completed_missions");
     localStorage.removeItem("ssp_v6_skill_progress");
     localStorage.removeItem(GUIDE_KEY);
+    localStorage.removeItem(REVIEW_LAB_RECORDS_KEY);
+    localStorage.removeItem(REVIEW_LAB_PROGRESS_KEY);
+    localStorage.removeItem(REVIEW_LAB_DRAFTS_KEY);
+    localStorage.removeItem(REVIEW_LAB_ACTIVE_KEY);
+    if (typeof resetQualityStudioProgress === "function") resetQualityStudioProgress();
     predictionAttempts = [];
     exerciseTrainingRecords = [];
     studentActionLog = [];
+    activeReviewLabTaskId = REVIEW_LAB_TASKS[0].id;
+    reviewLabLoadedTaskId = null;
+    reviewLabLastResult = null;
+    reviewLabSessionMessage = "";
     resetModeInteractionState();
     const firstMission = getFirstAvailableMission(activeLessonId);
     if (firstMission) {
@@ -6397,6 +8318,7 @@ function resetAllProgress() {
         renderLessonGoal();
     }
     renderDashboard();
+    renderReviewLab();
     renderQuestionBank();
     renderTeacherInsights();
     logStudentAction("button", "Reset Progress", { result: "cleared" });
@@ -6515,8 +8437,34 @@ exampleSelect.addEventListener('change', () => {
 
 btnResetView.addEventListener('click', resetAllProgress);
 btnPracticeView?.addEventListener('click', () => setActiveView("practice"));
+btnReviewLabView?.addEventListener('click', () => setActiveView("review"));
+btnQualityStudioView?.addEventListener('click', () => setActiveView("quality"));
 btnDashboardView?.addEventListener('click', () => setActiveView("dashboard"));
 btnQuestionBankView?.addEventListener('click', () => setActiveView("bank"));
+reviewTaskSelect?.addEventListener('change', () => setActiveReviewLabTask(reviewTaskSelect.value));
+btnReviewPause?.addEventListener('click', pauseReviewLab);
+btnReviewLastAttempt?.addEventListener('click', reviewLastLabAttempt);
+btnReviewRetry?.addEventListener('click', startNewReviewLabAttempt);
+btnReviewNext?.addEventListener('click', openNextReviewLabTask);
+btnReviewRestore?.addEventListener('click', () => {
+    const task = getReviewLabTask();
+    reviewAiCode.value = task.aiCode;
+    reviewReason.value = "";
+    reviewLabLastResult = null;
+    reviewLabSessionMessage = "Original AI-generated code restored. Issue and test choices were kept.";
+    saveReviewLabDraft();
+    renderReviewLabResult(null);
+});
+btnReviewEvaluate?.addEventListener('click', evaluateReviewLab);
+reviewAiCode?.addEventListener('input', scheduleReviewLabDraftSave);
+reviewReason?.addEventListener('input', scheduleReviewLabDraftSave);
+reviewIssueList?.addEventListener('change', scheduleReviewLabDraftSave);
+reviewTestList?.addEventListener('change', scheduleReviewLabDraftSave);
+reviewHistory?.addEventListener('click', event => {
+    const button = event.target.closest('[data-review-record-index]');
+    if (!button) return;
+    loadReviewLabAttempt(button.dataset.reviewRecordIndex);
+});
 
 modeSelect.addEventListener('change', () => {
     activeLearningMode = modeSelect.value;
@@ -6542,11 +8490,15 @@ lessonGoal.addEventListener('click', (event) => {
     const fixButton = event.target.closest(".mission-fix-button");
     if (fixButton) {
         const index = Number(fixButton.dataset.fixIndex);
-        if (revealedMissionFixes.has(index)) {
+        const wasRevealed = revealedMissionFixes.has(index);
+        if (wasRevealed) {
             revealedMissionFixes.delete(index);
         } else {
             revealedMissionFixes.add(index);
         }
+        logStudentAction("button", wasRevealed ? "Hide Fix" : "Show Fix", {
+            criterionIndex: index
+        });
         renderLessonGoal();
         return;
     }
@@ -6611,6 +8563,74 @@ function handleBlankInput(event) {
 lessonGoal.addEventListener('input', handleBlankInput);
 blankSlot?.addEventListener('input', handleBlankInput);
 
+function applyLevelZeroChoice(token, code) {
+    if (!token || code === undefined) return;
+    blankDraftValues[token] = code;
+    logStudentAction("choice", "Level 0 Choice", {
+        blankToken: token,
+        selectedCode: code
+    });
+    clearWalkthroughState();
+    revealedMissionFixes = new Set();
+    codeInput.value = renderCodeWithBlankValues();
+    resetTimelineState();
+    renderLessonGoal();
+    updateRunAvailability();
+}
+
+function applyChoiceToNextEmptyBlank(code) {
+    const task = getActiveTask();
+    if (!isLevelZeroTask(task)) return;
+    const nextBlank = task.blanks.find(blank => !getBlankValue(blank.token).trim());
+    if (!nextBlank) return;
+    applyLevelZeroChoice(nextBlank.token, code);
+}
+
+function clearLevelZeroChoice(token) {
+    if (!token) return;
+    delete blankDraftValues[token];
+    clearWalkthroughState();
+    revealedMissionFixes = new Set();
+    codeInput.value = renderCodeWithBlankValues();
+    resetTimelineState();
+    renderLessonGoal();
+    updateRunAvailability();
+}
+
+blankSlot?.addEventListener('click', (event) => {
+    const choiceButton = event.target.closest(".choice-chip");
+    if (choiceButton && !choiceButton.disabled) {
+        applyChoiceToNextEmptyBlank(choiceButton.dataset.choiceCode);
+        return;
+    }
+
+    const clearButton = event.target.closest(".choice-clear-button");
+    if (clearButton) {
+        clearLevelZeroChoice(clearButton.dataset.blankToken);
+    }
+});
+
+blankSlot?.addEventListener('dragstart', (event) => {
+    const choiceButton = event.target.closest(".choice-chip");
+    if (!choiceButton || choiceButton.disabled) return;
+    event.dataTransfer.setData("text/plain", choiceButton.dataset.choiceCode || "");
+    event.dataTransfer.effectAllowed = "copy";
+});
+
+blankSlot?.addEventListener('dragover', (event) => {
+    if (!event.target.closest(".choice-drop-zone")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+});
+
+blankSlot?.addEventListener('drop', (event) => {
+    const dropZone = event.target.closest(".choice-drop-zone");
+    if (!dropZone) return;
+    event.preventDefault();
+    const code = event.dataTransfer.getData("text/plain");
+    applyLevelZeroChoice(dropZone.dataset.blankToken, code);
+});
+
 btnCheckLesson.addEventListener('click', () => {
     if (!pipelineSteps.length) {
         logStudentAction("button", "Student Learning Goal", { result: "no_trace" });
@@ -6644,9 +8664,39 @@ btnReportHtml.addEventListener('click', (event) => {
     exportTeacherReport("html");
 });
 questionBankContent?.addEventListener('click', (event) => {
+    if (event.target.closest(".bank-editor-close")) {
+        closeQuestionBankEditor();
+        return;
+    }
+
+    if (event.target.closest(".bank-editor-save")) {
+        saveTeacherTaskEdit();
+        return;
+    }
+
+    if (event.target.closest(".bank-editor-reset")) {
+        resetTeacherTaskEdit();
+        return;
+    }
+
+    if (event.target.closest(".bank-editor-use")) {
+        const form = getBankEditorForm();
+        if (form) {
+            useBankTaskInCurrentBatch(form.dataset.editorTopic, form.dataset.editorTask);
+        }
+        return;
+    }
+
     const refreshButton = event.target.closest(".bank-refresh-topic");
-    if (!refreshButton) return;
-    refreshTopicPracticeBatch(refreshButton.dataset.bankRefreshTopic);
+    if (refreshButton) {
+        refreshTopicPracticeBatch(refreshButton.dataset.bankRefreshTopic);
+        return;
+    }
+
+    const taskButton = event.target.closest(".bank-task");
+    if (taskButton) {
+        openQuestionBankEditor(taskButton.dataset.bankTopic, taskButton.dataset.bankTask);
+    }
 });
 document.addEventListener('click', (event) => {
     if (!exportReportMenu?.classList.contains("open")) return;
@@ -6720,6 +8770,9 @@ async function runCodeFromEditor(actionLabel = "Compile & Run", options = {}) {
         renderFrame(0);
         const task = getActiveTask();
         lastLessonResult = evaluateLesson(task, pipelineSteps, code);
+        if (!options.skipProgress) {
+            handleLevelZeroAttemptResult(task, lastLessonResult);
+        }
         if (!options.skipProgress) {
             recordLearningProgress(task, lastLessonResult);
         }
@@ -7120,6 +9173,26 @@ function evaluateLesson(lesson, steps, code = "") {
     const goalVariables = getVariableGoalChecks(lesson).map(check => check.variable);
 
     const criteria = lesson.checks.map(check => {
+        if (check.type === "blankChoice") {
+            const selected = normalizeCodeChoice(getBlankValue(check.token));
+            const expected = normalizeCodeChoice(check.expected);
+            const passed = selected === expected;
+            const selectedText = getBlankValue(check.token).trim() || "empty";
+            return {
+                type: check.type,
+                token: check.token,
+                expected: check.expected,
+                actual: selectedText,
+                passed,
+                label: passed
+                    ? `${check.token} uses the correct code block: ${check.expected}.`
+                    : `${check.token} should use ${check.expected}. Selected: ${selectedText}.`,
+                fix: passed
+                    ? check.explanation || "This selected block matches the blank."
+                    : `${check.token} should be ${check.expected}.\nWhy: ${check.explanation || check.hint || "This block is the one that makes the surrounding code match the task goal."}\nHint: ${check.hint || "Replace the selected block and run again."}`
+            };
+        }
+
         if (check.type === "noErrors") {
             return {
                 type: check.type,
@@ -7444,51 +9517,85 @@ function exportTeacherReport(mode = "html") {
     }
 }
 
+const REPORT_LEVEL_ABILITIES = {
+    0: {
+        title: "Code-block recognition",
+        short: "L0 Recognition",
+        evidence: "Chooses correct code blocks from distractors and places them in the right blanks."
+    },
+    1: {
+        title: "Key expression understanding",
+        short: "L1 Expression",
+        evidence: "Completes the critical variable, condition, index, or accumulator expression."
+    },
+    2: {
+        title: "Single-line construction",
+        short: "L2 One line",
+        evidence: "Writes one complete Python line that fits the surrounding program."
+    },
+    3: {
+        title: "Complete program construction",
+        short: "L3 Program",
+        evidence: "Builds the full logic needed to make the target variable correct."
+    },
+    4: {
+        title: "Code quality and refinement",
+        short: "L4 Refactor",
+        evidence: "Replaces repeated or noisy code with the intended algorithmic pattern."
+    },
+    5: {
+        title: "Debugging and diagnosis",
+        short: "L5 Debug",
+        evidence: "Repairs broken code and explains the state problem with trace evidence."
+    }
+};
+
+const REPORT_STATUS_META = {
+    independent: { label: "Independent", className: "independent", rank: 5 },
+    developing: { label: "Developing", className: "developing", rank: 4 },
+    supported: { label: "With help", className: "supported", rank: 3 },
+    historical: { label: "Completed", className: "historical", rank: 3 },
+    needsSupport: { label: "Needs support", className: "needs-support", rank: 2 },
+    notStarted: { label: "Not started", className: "not-started", rank: 1 },
+    locked: { label: "Locked", className: "locked", rank: 0 }
+};
+
 function buildLearningReportData(scope = { type: "all", label: "All Practice Topics" }) {
     const topicFilter = scope.type === "topic" ? scope.topicId : null;
     const completed = getCompletedMissions();
-    const topicRows = STUDENT_TOPIC_ORDER
-        .filter(topicId => LESSONS[topicId])
-        .filter(topicId => !topicFilter || topicId === topicFilter)
-        .map(topicId => buildTopicReportRow(topicId, completed));
-    const totalLevels = topicRows.reduce((sum, topic) => sum + topic.totalCount, 0);
-    const completedLevels = topicRows.reduce((sum, topic) => sum + topic.completedCount, 0);
-    const overallPercent = totalLevels ? Math.round((completedLevels / totalLevels) * 100) : 0;
-    const skillProgress = getSkillProgress();
-    const skills = SKILL_DEFINITIONS.map(skill => ({
-        id: skill.id,
-        label: skill.label,
-        value: skillProgress[skill.id] || 0
-    }));
-    const trainedSkills = skills.filter(skill => skill.value > 0).length;
-    const scopedRecords = topicFilter
+    const records = topicFilter
         ? exerciseTrainingRecords.filter(item => item.topicId === topicFilter)
         : exerciseTrainingRecords;
-    const scopedPredictions = topicFilter
+    const predictions = topicFilter
         ? predictionAttempts.filter(item => item.topicId === topicFilter)
         : predictionAttempts;
-    const runCount = scopedRecords.length;
-    const passedRuns = scopedRecords.filter(item => item.goalPassed).length;
-    const runSuccessRate = runCount ? Math.round((passedRuns / runCount) * 100) : 0;
-    const predictionTotal = scopedPredictions.length;
-    const predictionCorrect = scopedPredictions.filter(item => item.correct).length;
-    const predictionRate = predictionTotal ? Math.round((predictionCorrect / predictionTotal) * 100) : 0;
-    const debugRuns = scopedRecords.filter(item => getTaskForReport(item.topicId, item.taskId)?.taskType === "level-5-debug");
-    const debugPassed = debugRuns.filter(item => item.goalPassed).length;
-    const recentExercises = scopedRecords.slice(-8).reverse().map(buildRecentExerciseRow);
-    const signals = buildReportSignals(scopedRecords, scopedPredictions, topicFilter === activeLessonId ? lastLessonResult : null);
-    const recommendations = buildReportRecommendations({
-        topicRows,
-        completedLevels,
-        totalLevels,
-        predictionTotal,
-        predictionRate,
-        debugRuns,
-        debugPassed,
-        signals
-    });
-    const nextFocus = topicRows.find(topic => topic.nextMission) || null;
+    const actions = topicFilter
+        ? studentActionLog.filter(item => item.topicId === topicFilter)
+        : studentActionLog;
+    const reportContext = { records, predictions, actions };
+    const topics = STUDENT_TOPIC_ORDER
+        .filter(topicId => LESSONS[topicId])
+        .filter(topicId => !topicFilter || topicId === topicFilter)
+        .map(topicId => buildTopicReportRow(topicId, completed, reportContext));
+    const abilities = buildAbilityMasteryRows(topics);
+    const currentResult = (!topicFilter || topicFilter === activeLessonId) ? lastLessonResult : null;
+    const signals = buildReportSignals(records, predictions, currentResult);
+    const recommendations = buildReportRecommendations({ topics, abilities, signals, records, predictions });
+    const recentExercises = records.slice(-8).reverse().map(buildRecentExerciseRow);
+    const totalLevels = topics.reduce((sum, topic) => sum + topic.totalCount, 0);
+    const completedLevels = topics.reduce((sum, topic) => sum + topic.completedCount, 0);
+    const independentLevels = topics.flatMap(topic => topic.levels).filter(level => level.statusKey === "independent").length;
+    const supportLevels = topics.flatMap(topic => topic.levels).filter(level => ["needsSupport", "supported"].includes(level.statusKey)).length;
+    const runCount = records.length;
+    const passedRuns = records.filter(item => item.goalPassed).length;
+    const predictionTotal = predictions.length;
+    const predictionCorrect = predictions.filter(item => item.correct).length;
+    const nextFocus = topics.find(topic => topic.nextMission) || null;
     const exportedAt = new Date();
+    const reviewLab = topicFilter ? null : buildReviewLabReportData();
+    const qualityStudio = topicFilter || typeof buildQualityStudioReportData !== "function"
+        ? null
+        : buildQualityStudioReportData();
 
     return {
         exportedAt,
@@ -7497,25 +9604,27 @@ function buildLearningReportData(scope = { type: "all", label: "All Practice Top
         summary: {
             completedLevels,
             totalLevels,
-            overallPercent,
-            verifiedTasks: completed.size,
+            independentLevels,
+            supportLevels,
+            overallPercent: totalLevels ? Math.round((completedLevels / totalLevels) * 100) : 0,
             runCount,
             passedRuns,
-            runSuccessRate,
+            runSuccessRate: runCount ? Math.round((passedRuns / runCount) * 100) : 0,
             predictionTotal,
             predictionCorrect,
-            predictionRate,
-            debugTotal: debugRuns.length,
-            debugPassed,
-            trainedSkills,
+            predictionRate: predictionTotal ? Math.round((predictionCorrect / predictionTotal) * 100) : 0,
+            helpEvents: actions.filter(isReportHelpAction).length,
             nextFocusLabel: nextFocus?.nextLevel || "All available levels complete",
             nextFocusTopic: nextFocus?.title || ""
         },
-        topics: topicRows,
-        skills,
+        narrative: buildReportNarrative(topics, abilities, signals, { records, predictions }),
+        topics,
+        abilities,
         recentExercises,
         signals,
         recommendations,
+        reviewLab,
+        qualityStudio,
         scope: {
             ...scope,
             isTopicReport: Boolean(topicFilter)
@@ -7523,58 +9632,269 @@ function buildLearningReportData(scope = { type: "all", label: "All Practice Top
     };
 }
 
-function buildTopicReportRow(topicId, completed = getCompletedMissions()) {
-    const progress = getTopicProgress(topicId);
-    const title = LESSONS[topicId]?.title || topicId;
-    const levels = progress.path.map((mission, index) => {
-        const task = getTaskForReport(mission.topicId, mission.taskId);
-        const isCompleted = isMissionCompleted(mission, completed);
-        const isNext = progress.nextMission?.taskId === mission.taskId;
-        const locked = !isCompleted && !isNext && !isMissionLevelAccessible(index, completed, progress.path);
+function buildReviewLabReportData() {
+    const records = getReviewLabRecords();
+    const completed = getReviewLabProgress();
+    const drafts = getReviewLabDrafts();
+    const tasks = REVIEW_LAB_TASKS.map(task => {
+        const attempts = records.filter(record => record.taskId === task.id);
+        const latest = attempts[attempts.length - 1] || null;
+        const passedAttempt = [...attempts].reverse().find(record => record.passed) || null;
+        const evidence = passedAttempt || latest;
         return {
-            level: mission.level,
-            stage: mission.stage,
-            taskTitle: task?.title || "Practice task",
-            status: isCompleted ? "Completed" : isNext ? "Next" : locked ? "Locked" : "Ready",
-            statusKey: isCompleted ? "done" : isNext ? "next" : locked ? "locked" : "ready"
+            title: task.title,
+            category: task.category,
+            attempts: attempts.length,
+            status: completed.has(task.id) ? "Demonstrated" : attempts.length ? "Needs revision" : drafts[task.id] ? "In progress" : "Not observed",
+            diagnosis: evidence?.issuePassed ? "Demonstrated" : "Not yet",
+            tests: evidence?.testDesignPassed ? "Demonstrated" : "Not yet",
+            repair: evidence?.runtimePassed && evidence?.sourcePassed ? "Demonstrated" : "Not yet",
+            reasoning: evidence?.reasonPassed ? "Demonstrated" : "Not yet"
         };
     });
 
     return {
+        completed: completed.size,
+        total: REVIEW_LAB_TASKS.length,
+        attempts: records.length,
+        drafts: Object.keys(drafts).filter(taskId => REVIEW_LAB_TASKS.some(task => task.id === taskId)).length,
+        tasks
+    };
+}
+
+function buildTopicReportRow(topicId, completed = getCompletedMissions(), context = {}) {
+    const progress = getTopicProgress(topicId);
+    const title = LESSONS[topicId]?.title || topicId;
+    const levels = progress.path.map((mission, index) => buildLevelMasteryRow({
+        mission,
+        index,
+        completed,
+        progress,
+        context
+    }));
+    const completedCount = levels.filter(level => level.isCompleted).length;
+    const nextMission = progress.nextMission;
+
+    return {
         topicId,
         title,
-        path: progress.path,
-        completedCount: progress.completedCount,
-        totalCount: progress.totalCount,
-        percent: progress.percent,
-        nextMission: progress.nextMission,
-        nextLevel: progress.nextMission
-            ? `Level ${progress.nextMission.level}: ${progress.nextMission.stage}`
-            : "Complete",
-        levels
+        levels,
+        completedCount,
+        totalCount: levels.length,
+        percent: levels.length ? Math.round((completedCount / levels.length) * 100) : 0,
+        nextMission,
+        nextLevel: nextMission ? `Level ${nextMission.level}: ${nextMission.stage}` : "Complete",
+        statusKey: getTopicMasteryStatus(levels)
     };
 }
 
-function getTaskForReport(topicId, taskId) {
-    return getQuestionBankForTopic(topicId).find(task => task.id === taskId)
-        || getTasksForTopic(topicId).find(task => task.id === taskId)
-        || null;
-}
+function buildLevelMasteryRow({ mission, index, completed, progress, context }) {
+    const task = getTaskForReport(mission.topicId, mission.taskId);
+    const records = (context.records || []).filter(item => item.topicId === mission.topicId && item.taskId === mission.taskId);
+    const actions = (context.actions || []).filter(item => item.topicId === mission.topicId && item.taskId === mission.taskId);
+    const predictions = (context.predictions || []).filter(item => item.topicId === mission.topicId && item.taskId === mission.taskId);
+    const failedCriteria = records.flatMap(record =>
+        (record.criteria || [])
+            .filter(check => !check.passed)
+            .map(check => ({ check, record }))
+    );
+    const helpEvents = actions.filter(isReportHelpAction);
+    const isCompleted = isMissionCompleted(mission, completed);
+    const isNext = progress.nextMission?.taskId === mission.taskId;
+    const locked = !isCompleted && !isNext && !isMissionLevelAccessible(index, completed, progress.path);
+    const passIndex = records.findIndex(record => record.goalPassed);
+    const attemptsToPass = passIndex >= 0 ? passIndex + 1 : null;
+    const statusKey = classifyLevelMastery({
+        isCompleted,
+        attempts: records.length,
+        attemptsToPass,
+        helpCount: helpEvents.length,
+        locked
+    });
+    const ability = REPORT_LEVEL_ABILITIES[mission.level] || {
+        title: `Level ${mission.level}`,
+        short: `L${mission.level}`,
+        evidence: mission.stage
+    };
 
-function buildRecentExerciseRow(item) {
-    const level = getPracticePath(item.topicId).find(mission => mission.taskId === item.taskId);
-    const failed = (item.criteria || []).filter(check => !check.passed);
     return {
-        time: formatReportDate(item.timestamp),
-        topicTitle: item.topicTitle || LESSONS[item.topicId]?.title || item.topicId,
-        taskTitle: item.taskTitle || "Practice task",
-        levelLabel: level ? `Level ${level.level}` : "Practice",
-        result: item.goalPassed ? "Passed" : "Needs work",
-        traceSteps: item.traceSteps,
-        evidence: failed.length
-            ? failed.slice(0, 2).map(check => check.label).join(" ")
-            : "Goal met with trace evidence."
+        level: mission.level,
+        stage: mission.stage,
+        ability,
+        taskTitle: task?.title || "Practice task",
+        taskType: task?.taskType || "",
+        isCompleted,
+        isNext,
+        locked,
+        statusKey,
+        statusLabel: getReportStatusMeta(statusKey).label,
+        attempts: records.length,
+        attemptsToPass,
+        passedAttempts: records.filter(record => record.goalPassed).length,
+        helpCount: helpEvents.length,
+        predictionTotal: predictions.length,
+        predictionCorrect: predictions.filter(item => item.correct).length,
+        topGap: summarizeFailedCriteria(failedCriteria),
+        evidence: buildLevelEvidenceText({ records, isCompleted, locked, helpEvents, failedCriteria, predictions, attemptsToPass })
     };
+}
+
+function classifyLevelMastery({ isCompleted, attempts, attemptsToPass, helpCount, locked }) {
+    if (isCompleted) {
+        if (!attempts) return "historical";
+        if (!attemptsToPass) return helpCount ? "supported" : "historical";
+        if (helpCount || attemptsToPass > 3) return "supported";
+        if (attemptsToPass <= 1) return "independent";
+        return "developing";
+    }
+    if (attempts > 0) return "needsSupport";
+    return locked ? "locked" : "notStarted";
+}
+
+function getTopicMasteryStatus(levels) {
+    if (levels.some(level => level.statusKey === "needsSupport")) return "needsSupport";
+    if (levels.some(level => level.statusKey === "supported")) return "supported";
+    if (levels.some(level => level.statusKey === "developing")) return "developing";
+    if (levels.length && levels.every(level => ["independent", "historical"].includes(level.statusKey))) return "independent";
+    if (levels.some(level => ["independent", "historical"].includes(level.statusKey))) return "developing";
+    return "notStarted";
+}
+
+function buildLevelEvidenceText({ records, isCompleted, locked, helpEvents, failedCriteria, predictions, attemptsToPass }) {
+    if (isCompleted && !records.length) {
+        return "Completed in stored progress; no current-session attempt details were available.";
+    }
+    if (isCompleted) {
+        const helpText = helpEvents.length ? ` with ${helpEvents.length} help event${helpEvents.length === 1 ? "" : "s"}` : " without recorded help";
+        const predictionText = predictions.length ? ` Prediction checks: ${predictions.filter(item => item.correct).length}/${predictions.length}.` : "";
+        return `Passed in ${attemptsToPass || records.length} attempt${(attemptsToPass || records.length) === 1 ? "" : "s"}${helpText}.${predictionText}`;
+    }
+    if (records.length) {
+        const gap = summarizeFailedCriteria(failedCriteria);
+        return `${records.length} attempt${records.length === 1 ? "" : "s"} so far; current gap: ${gap || "the trace does not yet prove the goal"}.`;
+    }
+    if (locked) return "Locked because earlier levels in this topic are not complete yet.";
+    return "Ready to start; no attempt evidence recorded yet.";
+}
+
+function isReportHelpAction(action) {
+    return /Show Fix|Reveal|Walkthrough|Answer Revealed/i.test(action?.label || "");
+}
+
+function getReportStatusMeta(statusKey) {
+    return REPORT_STATUS_META[statusKey] || REPORT_STATUS_META.notStarted;
+}
+
+function summarizeFailedCriteria(failedItems) {
+    if (!failedItems?.length) return "";
+    const counts = failedItems.reduce((map, item) => {
+        const category = categorizeReportCheck(item.check).label;
+        map.set(category, (map.get(category) || 0) + 1);
+        return map;
+    }, new Map());
+    const [label] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] || [];
+    const sample = failedItems[failedItems.length - 1]?.check?.label || "";
+    return sample ? `${label}: ${sample}` : label;
+}
+
+function categorizeReportCheck(check = {}) {
+    if (check.type === "blankChoice") {
+        return {
+            label: "Code-block choice",
+            diagnostic: "The student selected a block that does not fit the blank's role.",
+            level: "Review"
+        };
+    }
+    if (check.type === "noErrors") {
+        return {
+            label: "Executable code",
+            diagnostic: "The code still stops before the final state can be trusted.",
+            level: "Fix first"
+        };
+    }
+    if (check.type === "variableEquals") {
+        return {
+            label: "Final state model",
+            diagnostic: "The target variable finishes with the wrong or missing value.",
+            level: "Review"
+        };
+    }
+    if (check.type === "conceptSeen") {
+        return {
+            label: `${check.concept || "Process"} evidence`,
+            diagnostic: "The final answer may not show the intended programming process.",
+            level: "Practice"
+        };
+    }
+    if (check.type === "antiShortcut") {
+        return {
+            label: "Hard-coded answer",
+            diagnostic: "The code appears to assign the final answer directly instead of producing it through logic.",
+            level: "Review"
+        };
+    }
+    if (check.type === "codeRegex" || check.type === "maxNonEmptyLines") {
+        return {
+            label: "Code quality",
+            diagnostic: "The code works toward the answer but still misses the requested structure or refinement.",
+            level: "Refine"
+        };
+    }
+    if (check.type === "stdoutContains") {
+        return {
+            label: "Output evidence",
+            diagnostic: "The internal value may exist, but the required visible output is missing.",
+            level: "Check"
+        };
+    }
+    return {
+        label: "General goal evidence",
+        diagnostic: "The trace does not yet provide enough evidence for the task goal.",
+        level: "Review"
+    };
+}
+
+function buildAbilityMasteryRows(topics) {
+    return Object.entries(REPORT_LEVEL_ABILITIES).map(([levelText, ability]) => {
+        const levelNumber = Number(levelText);
+        const levels = topics.flatMap(topic => topic.levels.filter(level => level.level === levelNumber));
+        const counts = levels.reduce((map, level) => {
+            map[level.statusKey] = (map[level.statusKey] || 0) + 1;
+            return map;
+        }, {});
+        const completed = levels.filter(level => level.isCompleted).length;
+        const attempted = levels.filter(level => level.attempts > 0).length;
+        const statusKey = getAbilityStatusKey(levels);
+        const gapExamples = levels
+            .filter(level => level.statusKey === "needsSupport" || level.topGap)
+            .map(level => `${level.taskTitle}: ${level.topGap || level.evidence}`)
+            .slice(0, 2);
+
+        return {
+            level: levelNumber,
+            ...ability,
+            statusKey,
+            statusLabel: getReportStatusMeta(statusKey).label,
+            completed,
+            total: levels.length,
+            attempted,
+            counts,
+            evidence: `${completed}/${levels.length || 0} completed; ${attempted} attempted in this session.`,
+            nextCheck: gapExamples.length
+                ? gapExamples.join(" ")
+                : ability.evidence
+        };
+    });
+}
+
+function getAbilityStatusKey(levels) {
+    if (!levels.length) return "notStarted";
+    if (levels.some(level => level.statusKey === "needsSupport")) return "needsSupport";
+    if (levels.some(level => level.statusKey === "supported")) return "supported";
+    if (levels.some(level => level.statusKey === "developing")) return "developing";
+    if (levels.some(level => level.statusKey === "independent")) return "independent";
+    if (levels.some(level => level.statusKey === "historical")) return "historical";
+    return levels.some(level => level.statusKey === "notStarted") ? "notStarted" : "locked";
 }
 
 function buildReportSignals(records, predictions, currentResult) {
@@ -7589,68 +9909,45 @@ function buildReportSignals(records, predictions, currentResult) {
             .forEach(check => failedChecks.push({ check, record: { topicTitle: LESSONS[activeLessonId]?.title || "" } }));
     }
 
-    const signals = [];
-    const wrongPredictions = predictions.filter(item => !item.correct);
-    const shortcutCount = failedChecks.filter(item => item.check.type === "antiShortcut" || /shortcut/i.test(item.check.label || "")).length;
-    const runtimeCount = failedChecks.filter(item => item.check.type === "noErrors").length;
-    const valueCount = failedChecks.filter(item => item.check.type === "variableEquals").length;
-    const conceptCounts = failedChecks
-        .filter(item => item.check.type === "conceptSeen")
-        .reduce((map, item) => {
-            const concept = item.check.concept || "process evidence";
-            map.set(concept, (map.get(concept) || 0) + 1);
-            return map;
-        }, new Map());
+    const grouped = new Map();
+    failedChecks.forEach(item => {
+        const category = categorizeReportCheck(item.check);
+        const existing = grouped.get(category.label) || {
+            label: category.label,
+            level: category.level,
+            count: 0,
+            detail: category.diagnostic,
+            evidence: []
+        };
+        existing.count += 1;
+        existing.evidence.push(item.check.label || item.check.fix || "");
+        grouped.set(category.label, existing);
+    });
 
+    const signals = [...grouped.values()]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
+        .map(item => ({
+            label: item.label,
+            level: item.level,
+            detail: `${item.count} signal${item.count === 1 ? "" : "s"}. ${item.detail} ${item.evidence.filter(Boolean).slice(-1)[0] || ""}`.trim()
+        }));
+
+    const wrongPredictions = predictions.filter(item => !item.correct);
     if (wrongPredictions.length) {
         const variables = [...new Set(wrongPredictions.map(item => item.variable).filter(Boolean))].slice(0, 3).join(", ");
-        signals.push({
-            label: "Prediction accuracy",
+        signals.unshift({
+            label: "Trace prediction",
             level: "Review",
-            detail: `${wrongPredictions.length} prediction attempt${wrongPredictions.length === 1 ? "" : "s"} were incorrect${variables ? `, often around ${variables}` : ""}.`
+            detail: `${wrongPredictions.length} incorrect prediction attempt${wrongPredictions.length === 1 ? "" : "s"}${variables ? ` around ${variables}` : ""}. This suggests the student should pause on variable changes and predict the next state.`
         });
     }
-
-    if (runtimeCount) {
-        signals.push({
-            label: "Executable code",
-            level: "Fix first",
-            detail: `${runtimeCount} run${runtimeCount === 1 ? "" : "s"} still stopped with an error before the goal could be trusted.`
-        });
-    }
-
-    if (valueCount) {
-        signals.push({
-            label: "Final state",
-            level: "Review",
-            detail: `${valueCount} check${valueCount === 1 ? "" : "s"} had a wrong or missing target variable value.`
-        });
-    }
-
-    if (shortcutCount) {
-        signals.push({
-            label: "Process evidence",
-            level: "Review",
-            detail: `${shortcutCount} attempt${shortcutCount === 1 ? "" : "s"} looked like a direct final-answer shortcut instead of a repaired process.`
-        });
-    }
-
-    [...conceptCounts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 2)
-        .forEach(([concept, count]) => {
-            signals.push({
-                label: `${concept} evidence`,
-                level: "Practice",
-                detail: `${count} check${count === 1 ? "" : "s"} still needed clearer ${concept} behavior in the trace.`
-            });
-        });
 
     if (!signals.length) {
         return [{
             label: "No major gap yet",
             level: "Stable",
-            detail: "The current session has not produced a strong misunderstanding signal. More attempts will make this section more useful."
+            detail: "No strong misconception signal has been recorded in this browser session. More attempts will make the diagnosis more precise."
         }];
     }
 
@@ -7659,52 +9956,96 @@ function buildReportSignals(records, predictions, currentResult) {
 
 function buildReportRecommendations(context) {
     const recommendations = [];
-    const nextTopic = context.topicRows.find(topic => topic.nextMission);
-    const hasAccumulatorGap = context.signals.some(item => /Accumulator/i.test(item.label + item.detail));
+    const nextTopic = context.topics.find(topic => topic.nextMission);
+    const weakAbility = context.abilities.find(ability => ability.statusKey === "needsSupport")
+        || context.abilities.find(ability => ability.statusKey === "supported")
+        || context.abilities.find(ability => ability.statusKey === "developing");
     const hasRuntimeGap = context.signals.some(item => /Executable code/i.test(item.label));
-    const hasShortcutGap = context.signals.some(item => /shortcut|Process evidence/i.test(item.detail + item.label));
-
-    if (context.completedLevels === 0) {
-        recommendations.push("Start with the current topic's Level 1 and keep the first success small: fill the blank, run the trace, then read the final variable.");
-    }
+    const hasShortcutGap = context.signals.some(item => /Hard-coded|Process evidence/i.test(item.label + item.detail));
+    const hasPredictionGap = context.signals.some(item => /Trace prediction/i.test(item.label));
+    const hasCodeChoiceGap = context.signals.some(item => /Code-block choice/i.test(item.label));
 
     if (hasRuntimeGap) {
-        recommendations.push("Fix runtime or syntax errors before discussing algorithm quality. A report should first show that the program can finish.");
+        recommendations.push("First stabilize syntax and runtime errors. A teacher should ask the student to identify the exact line where execution stops before discussing algorithm quality.");
     }
-
-    if (context.predictionTotal >= 3 && context.predictionRate < 70) {
-        recommendations.push("Use the timeline as a prediction exercise: pause before each variable change and ask what the next value should be.");
+    if (hasCodeChoiceGap) {
+        recommendations.push("Return to Level 0 for the same topic and ask the student to explain why each selected block fits its blank before running.");
     }
-
-    if (hasAccumulatorGap) {
-        recommendations.push("Review the accumulator pattern: keep the old value, add the current item, and confirm the running total in the trace.");
+    if (hasPredictionGap) {
+        recommendations.push("Use the timeline as a prediction drill: pause before each variable change and ask what the next value should be.");
     }
-
     if (hasShortcutGap) {
-        recommendations.push("Ask for trace evidence, not only the final answer. The student should explain which line creates the target value.");
+        recommendations.push("Ask for process evidence, not only the final value. The student should point to the line that creates the target value through the intended pattern.");
     }
-
-    if (context.debugRuns.length && context.debugPassed < context.debugRuns.length) {
-        recommendations.push("For Debug Detective, have the student identify the suspicious line before editing. The explanation should mention the bad state change.");
+    if (weakAbility) {
+        recommendations.push(`Target the weakest ability next: ${weakAbility.title}. ${weakAbility.nextCheck}`);
     }
-
     if (nextTopic) {
-        recommendations.push(`Next practice focus: ${nextTopic.title}, ${nextTopic.nextLevel}.`);
+        recommendations.push(`Next practice item: ${nextTopic.title}, ${nextTopic.nextLevel}.`);
     }
-
     if (!recommendations.length) {
-        recommendations.push("Continue to the next unlocked level and keep using trace evidence to explain each successful run.");
+        recommendations.push("Continue to the next unlocked level and keep asking the student to explain the trace evidence behind each successful run.");
     }
 
     return recommendations.slice(0, 5);
 }
 
+function buildReportNarrative(topics, abilities, signals, context) {
+    const completed = topics.reduce((sum, topic) => sum + topic.completedCount, 0);
+    const total = topics.reduce((sum, topic) => sum + topic.totalCount, 0);
+    const weakest = abilities.find(ability => ability.statusKey === "needsSupport")
+        || abilities.find(ability => ability.statusKey === "supported")
+        || abilities.find(ability => ability.statusKey === "developing");
+    const strongest = abilities.find(ability => ability.statusKey === "independent")
+        || abilities.find(ability => ability.statusKey === "historical");
+    const firstSignal = signals[0];
+    const predictionRate = context.predictions.length
+        ? `${context.predictions.filter(item => item.correct).length}/${context.predictions.length}`
+        : "not enough data";
+
+    return {
+        headline: total
+            ? `The student has completed ${completed}/${total} current training levels.`
+            : "No current training levels were found for this report scope.",
+        mastery: weakest
+            ? `Most useful next focus: ${weakest.title}. ${weakest.evidence}`
+            : "No weak ability has been detected yet.",
+        strength: strongest
+            ? `Current strength signal: ${strongest.title}.`
+            : "The report needs more successful attempts before naming a stable strength.",
+        trace: `Trace prediction evidence: ${predictionRate}.`,
+        risk: firstSignal ? `${firstSignal.label}: ${firstSignal.detail}` : "No major risk signal yet."
+    };
+}
+
+function getTaskForReport(topicId, taskId) {
+    return getQuestionBankForTopic(topicId).find(task => task.id === taskId)
+        || getTasksForTopic(topicId).find(task => task.id === taskId)
+        || null;
+}
+
+function buildRecentExerciseRow(item) {
+    const level = getPracticePath(item.topicId).find(mission => mission.taskId === item.taskId);
+    const failed = (item.criteria || []).filter(check => !check.passed);
+    const topGap = summarizeFailedCriteria(failed.map(check => ({ check, record: item })));
+    return {
+        time: formatReportDate(item.timestamp),
+        topicTitle: item.topicTitle || LESSONS[item.topicId]?.title || item.topicId,
+        taskTitle: item.taskTitle || "Practice task",
+        levelLabel: level ? `Level ${level.level}` : "Practice",
+        result: item.goalPassed ? "Passed" : "Needs work",
+        traceSteps: item.traceSteps,
+        evidence: item.goalPassed
+            ? "Goal met with trace evidence."
+            : topGap || "The current trace does not yet prove the goal."
+    };
+}
+
 function renderLearningReportHtml(report, options = {}) {
     const autoPrint = Boolean(options.autoPrint);
     const title = report.scope?.isTopicReport
-        ? `${report.scope.label} Practice Report`
-        : "Python Trace Practice Report";
-    const topicSectionTitle = report.scope?.isTopicReport ? "Level Evidence" : "Topic Progress";
+        ? `${report.scope.label} Mastery Report`
+        : "Student Programming Mastery Report";
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7713,43 +10054,47 @@ function renderLearningReportHtml(report, options = {}) {
     <title>${title}</title>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; background: #f4f6f5; color: #1e2924; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
-        .report { width: min(980px, calc(100% - 32px)); margin: 24px auto; background: #ffffff; border: 1px solid #dbe5df; border-radius: 8px; overflow: hidden; box-shadow: 0 18px 48px rgba(21, 31, 26, 0.1); }
-        .hero { padding: 28px 32px; background: #18231f; color: #ffffff; display: grid; gap: 8px; }
+        body { margin: 0; background: #eef2f1; color: #1d2924; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.45; }
+        .report { width: min(1040px, calc(100% - 32px)); margin: 24px auto; background: #ffffff; border: 1px solid #dbe5df; border-radius: 8px; overflow: hidden; box-shadow: 0 18px 48px rgba(21, 31, 26, 0.1); }
+        .hero { padding: 28px 32px; background: #17211e; color: #ffffff; display: grid; gap: 8px; }
         .hero h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
         .hero p { margin: 0; color: #c9d8d0; font-size: 14px; }
         .section { padding: 22px 32px; border-bottom: 1px solid #e4ebe7; }
         .section:last-child { border-bottom: 0; }
-        .section h2 { margin: 0 0 12px; font-size: 16px; color: #18231f; }
-        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .section h2 { margin: 0 0 12px; font-size: 16px; color: #17211e; }
+        .summary-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 14px; align-items: stretch; }
+        .narrative { display: grid; gap: 8px; border: 1px solid #dbe5df; border-radius: 8px; padding: 14px; background: #fbfcfb; }
+        .narrative p { margin: 0; color: #32413a; font-size: 13px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .stat { border: 1px solid #dbe5df; border-radius: 8px; padding: 12px; background: #fbfcfb; }
-        .stat strong { display: block; font-size: 22px; color: #0f5132; }
+        .stat strong { display: block; font-size: 21px; color: #0f5132; }
         .stat span { color: #60736a; font-size: 12px; }
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th { text-align: left; color: #60736a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #dbe5df; padding: 8px 7px; }
         td { border-bottom: 1px solid #edf2ef; padding: 8px 7px; vertical-align: top; }
         tr:last-child td { border-bottom: 0; }
-        .bar { height: 8px; background: #e7eeea; border-radius: 999px; overflow: hidden; margin-top: 5px; }
-        .fill { height: 100%; background: linear-gradient(90deg, #2f855a, #2b6cb0); border-radius: inherit; }
-        .level-pills, .skill-list, .signal-list, .rec-list { display: flex; flex-wrap: wrap; gap: 7px; }
-        .pill { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; border-radius: 999px; border: 1px solid #cfd9d4; color: #60736a; font-weight: 800; font-size: 11px; }
-        .pill.done { background: #def7e8; border-color: #63b37d; color: #14532d; }
-        .pill.next { background: #e0f2fe; border-color: #60a5fa; color: #1e3a8a; }
-        .pill.ready { background: #fff7df; border-color: #e5b84a; color: #7a5410; }
-        .skill { display: grid; gap: 5px; min-width: 150px; flex: 1 1 160px; border: 1px solid #dbe5df; border-radius: 8px; padding: 9px; }
-        .skill-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 700; }
-        .signal, .recommendation { flex: 1 1 220px; border: 1px solid #dbe5df; border-radius: 8px; padding: 10px; background: #fbfcfb; }
-        .signal strong, .recommendation strong { display: block; margin-bottom: 4px; color: #18231f; }
-        .signal span { display: inline-block; margin-bottom: 5px; color: #2b6cb0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; }
+        .matrix-cell { display: grid; gap: 4px; min-width: 116px; }
+        .status-pill { display: inline-flex; width: fit-content; max-width: 100%; padding: 4px 8px; border-radius: 999px; border: 1px solid #cfd9d4; color: #60736a; font-weight: 800; font-size: 11px; line-height: 1.2; }
+        .status-pill.independent { background: #def7e8; border-color: #63b37d; color: #14532d; }
+        .status-pill.developing { background: #e0f2fe; border-color: #60a5fa; color: #1e3a8a; }
+        .status-pill.supported { background: #fff7df; border-color: #e5b84a; color: #7a5410; }
+        .status-pill.historical { background: #eef2ff; border-color: #9aa7ff; color: #3730a3; }
+        .status-pill.needs-support { background: #fee2e2; border-color: #f87171; color: #7f1d1d; }
+        .status-pill.not-started, .status-pill.locked { background: #f4f6f5; border-color: #d1ddd7; color: #6b7c73; }
+        .small-note { color: #60736a; font-size: 11px; line-height: 1.35; }
+        .ability-grid, .signal-list, .rec-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+        .ability-card, .signal, .recommendation { border: 1px solid #dbe5df; border-radius: 8px; padding: 11px; background: #fbfcfb; display: grid; gap: 6px; }
+        .ability-card strong, .signal strong, .recommendation strong { color: #17211e; }
+        .signal span { color: #2b6cb0; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3px; }
         .muted { color: #60736a; }
         .result-pass { color: #0f6b3e; font-weight: 800; }
         .result-fix { color: #9a5b00; font-weight: 800; }
-        .print-note { margin-top: 14px; color: #60736a; font-size: 12px; }
-        @media (max-width: 760px) {
+        .print-note { margin-top: 12px; color: #60736a; font-size: 12px; }
+        @media (max-width: 820px) {
             .report { width: 100%; margin: 0; border-radius: 0; }
-            .stat-grid, .two-col { grid-template-columns: 1fr; }
+            .summary-grid, .stat-grid { grid-template-columns: 1fr; }
             .hero, .section { padding: 20px; }
+            .matrix-wrap { overflow-x: auto; }
         }
         @media print {
             @page { margin: 14mm; }
@@ -7757,8 +10102,8 @@ function renderLearningReportHtml(report, options = {}) {
             .report { width: 100%; margin: 0; border: 0; box-shadow: none; border-radius: 0; }
             .hero { background: #ffffff; color: #111827; border-bottom: 2px solid #111827; padding: 0 0 14px; }
             .hero p { color: #4b5563; }
-            .section { padding: 14px 0; break-inside: avoid; }
-            .stat, .skill, .signal, .recommendation { break-inside: avoid; }
+            .section { padding: 13px 0; break-inside: avoid; }
+            .ability-card, .signal, .recommendation, .stat, tr { break-inside: avoid; }
             .print-note { display: none; }
         }
     </style>
@@ -7767,33 +10112,43 @@ function renderLearningReportHtml(report, options = {}) {
     <main class="report">
         <section class="hero">
             <h1>${title}</h1>
-            <p>Generated ${escapeHtml(report.exportedAtLabel)}. ${report.scope?.isTopicReport ? "Focused on one practice topic and its current level batch." : "Covers all practice topics and current training batches."}</p>
+            <p>Generated ${escapeHtml(report.exportedAtLabel)}. ${report.scope?.isTopicReport ? "Focused on one practice topic and its current training batch." : "Covers all current practice-topic batches."}</p>
         </section>
         <section class="section">
-            <h2>Learning Snapshot</h2>
+            <h2>Mastery Snapshot</h2>
             ${renderReportStats(report)}
             <div class="print-note">Use the browser print dialog and choose "Save as PDF" for a clean PDF copy.</div>
         </section>
         <section class="section">
-            <h2>${topicSectionTitle}</h2>
+            <h2>Knowledge Mastery Matrix</h2>
             ${renderReportTopicTable(report.topics)}
         </section>
         <section class="section">
-            <h2>Skill Map</h2>
-            ${renderReportSkillMap(report.skills)}
+            <h2>Ability Evidence</h2>
+            ${renderReportSkillMap(report.abilities)}
         </section>
-        <section class="section two-col">
-            <div>
-                <h2>Misunderstanding Signals</h2>
-                ${renderReportSignals(report.signals)}
-            </div>
-            <div>
-                <h2>Next Review Plan</h2>
-                ${renderReportRecommendations(report.recommendations)}
-            </div>
+        ${report.reviewLab ? `
+        <section class="section">
+            <h2>AI Code Review Evidence</h2>
+            ${renderReportReviewLab(report.reviewLab)}
+        </section>
+        ` : ""}
+        ${report.qualityStudio && typeof renderQualityStudioReportHtml === "function" ? `
+        <section class="section">
+            <h2>Code Quality Evidence</h2>
+            ${renderQualityStudioReportHtml(report.qualityStudio)}
+        </section>
+        ` : ""}
+        <section class="section">
+            <h2>Misconception Signals</h2>
+            ${renderReportSignals(report.signals)}
         </section>
         <section class="section">
-            <h2>Recent Practice Evidence</h2>
+            <h2>Next Review Plan</h2>
+            ${renderReportRecommendations(report.recommendations)}
+        </section>
+        <section class="section">
+            <h2>Recent Trace Evidence</h2>
             ${renderReportExerciseTable(report.recentExercises)}
         </section>
     </main>
@@ -7802,67 +10157,115 @@ function renderLearningReportHtml(report, options = {}) {
 </html>`;
 }
 
-function renderReportStats(report) {
-    const summary = report.summary;
-    const predictionText = summary.predictionTotal ? `${summary.predictionCorrect}/${summary.predictionTotal}` : "No data";
-    const debugText = summary.debugTotal ? `${summary.debugPassed}/${summary.debugTotal}` : "No data";
-    const nextText = summary.nextFocusTopic
-        ? `${summary.nextFocusTopic}: ${summary.nextFocusLabel}`
-        : summary.nextFocusLabel;
-    const stats = [
-        [`${summary.completedLevels}/${summary.totalLevels}`, "Levels completed"],
-        [`${summary.overallPercent}%`, "Overall progress"],
-        [`${summary.passedRuns}/${summary.runCount || 0}`, "Compile runs passed"],
-        [predictionText, "Predictions correct"],
-        [debugText, "Debug levels passed"],
-        [summary.trainedSkills, "Skills touched"]
-    ];
-
-    return `
-        <div class="stat-grid">
-            ${stats.map(([value, label]) => `<div class="stat"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("")}
-        </div>
-        <p class="muted" style="margin: 12px 0 0;"><strong>Suggested next focus:</strong> ${escapeHtml(nextText)}</p>
-    `;
-}
-
-function renderReportTopicTable(topics) {
-    const rows = topics.map(topic => `
+function renderReportReviewLab(reviewLab) {
+    const rows = reviewLab.tasks.map(task => `
         <tr>
-            <td><strong>${escapeHtml(topic.title)}</strong></td>
-            <td>
-                ${topic.completedCount}/${topic.totalCount} levels
-                <div class="bar"><div class="fill" style="width: ${topic.percent}%"></div></div>
-            </td>
-            <td>
-                <div class="level-pills">
-                    ${topic.levels.map(level => `<span class="pill ${level.statusKey}" title="${escapeHtml(level.taskTitle)}">${level.level}</span>`).join("")}
-                </div>
-            </td>
-            <td>${escapeHtml(topic.nextLevel)}</td>
+            <td><strong>${escapeHtml(task.title)}</strong><div class="small-note">${escapeHtml(task.category)}</div></td>
+            <td class="${task.status === "Demonstrated" ? "result-pass" : "result-fix"}">${escapeHtml(task.status)}</td>
+            <td>${escapeHtml(task.diagnosis)}</td>
+            <td>${escapeHtml(task.tests)}</td>
+            <td>${escapeHtml(task.repair)}</td>
+            <td>${escapeHtml(task.reasoning)}</td>
+            <td>${task.attempts}</td>
         </tr>
     `).join("");
 
     return `
-        <table>
-            <thead><tr><th>Topic</th><th>Progress</th><th>Levels</th><th>Next</th></tr></thead>
-            <tbody>${rows}</tbody>
-        </table>
+        <p class="muted"><strong>${reviewLab.completed}/${reviewLab.total}</strong> review challenges demonstrated across ${reviewLab.attempts} evaluated attempt${reviewLab.attempts === 1 ? "" : "s"}; ${reviewLab.drafts || 0} draft${reviewLab.drafts === 1 ? " is" : "s are"} currently in progress. A challenge is demonstrated only when diagnosis, test choice, executable repair, structure, and explanation all pass.</p>
+        <div class="matrix-wrap">
+            <table>
+                <thead><tr><th>Challenge</th><th>Overall</th><th>Diagnosis</th><th>Tests</th><th>Repair</th><th>Reasoning</th><th>Attempts</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
     `;
 }
 
-function renderReportSkillMap(skills) {
-    const rows = skills
-        .slice()
-        .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
-        .map(skill => `
-            <div class="skill">
-                <div class="skill-head"><span>${escapeHtml(skill.label)}</span><span>${skill.value}%</span></div>
-                <div class="bar"><div class="fill" style="width: ${skill.value}%"></div></div>
-            </div>
-        `).join("");
+function renderReportStats(report) {
+    const summary = report.summary;
+    const nextText = summary.nextFocusTopic
+        ? `${summary.nextFocusTopic}: ${summary.nextFocusLabel}`
+        : summary.nextFocusLabel;
+    const predictionText = summary.predictionTotal ? `${summary.predictionCorrect}/${summary.predictionTotal}` : "No data";
+    const stats = [
+        [`${summary.completedLevels}/${summary.totalLevels}`, "Current levels completed"],
+        [`${summary.independentLevels}`, "Independent mastery signals"],
+        [`${summary.supportLevels}`, "Levels needing support/help"],
+        [`${summary.passedRuns}/${summary.runCount || 0}`, "Compile runs passed"],
+        [predictionText, "Trace predictions correct"],
+        [summary.helpEvents, "Help events recorded"]
+    ];
 
-    return `<div class="skill-list">${rows}</div>`;
+    return `
+        <div class="summary-grid">
+            <div class="narrative">
+                <p><strong>${escapeHtml(report.narrative.headline)}</strong></p>
+                <p>${escapeHtml(report.narrative.strength)}</p>
+                <p>${escapeHtml(report.narrative.mastery)}</p>
+                <p>${escapeHtml(report.narrative.trace)}</p>
+                <p>${escapeHtml(report.narrative.risk)}</p>
+                <p><strong>Suggested next focus:</strong> ${escapeHtml(nextText)}</p>
+            </div>
+            <div class="stat-grid">
+                ${stats.map(([value, label]) => `<div class="stat"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("")}
+            </div>
+        </div>
+    `;
+}
+
+function renderReportTopicTable(topics) {
+    const levelHeaders = Object.entries(REPORT_LEVEL_ABILITIES)
+        .map(([level, ability]) => `<th>L${level}<br><span class="small-note">${escapeHtml(ability.title)}</span></th>`)
+        .join("");
+    const rows = topics.map(topic => `
+        <tr>
+            <td>
+                <strong>${escapeHtml(topic.title)}</strong><br>
+                <span class="small-note">${topic.completedCount}/${topic.totalCount} complete | Next: ${escapeHtml(topic.nextLevel)}</span>
+            </td>
+            ${Object.keys(REPORT_LEVEL_ABILITIES).map(levelText => {
+                const level = topic.levels.find(item => item.level === Number(levelText));
+                if (!level) return `<td><span class="status-pill locked">Missing</span></td>`;
+                return `
+                    <td>
+                        <div class="matrix-cell">
+                            ${renderStatusPill(level.statusKey, level.statusLabel)}
+                            <span class="small-note">${escapeHtml(level.taskTitle)}</span>
+                            <span class="small-note">${level.attempts ? `${level.attempts} run${level.attempts === 1 ? "" : "s"}` : "no session run"}</span>
+                        </div>
+                    </td>
+                `;
+            }).join("")}
+        </tr>
+    `).join("");
+
+    return `
+        <div class="matrix-wrap">
+            <table>
+                <thead><tr><th>Topic</th>${levelHeaders}</tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderStatusPill(statusKey, label = getReportStatusMeta(statusKey).label) {
+    return `<span class="status-pill ${escapeHtml(getReportStatusMeta(statusKey).className)}">${escapeHtml(label)}</span>`;
+}
+
+function renderReportSkillMap(abilities) {
+    return `
+        <div class="ability-grid">
+            ${abilities.map(ability => `
+                <div class="ability-card">
+                    <div>${renderStatusPill(ability.statusKey, ability.statusLabel)}</div>
+                    <strong>${escapeHtml(ability.short)}: ${escapeHtml(ability.title)}</strong>
+                    <span class="muted">${escapeHtml(ability.evidence)}</span>
+                    <span class="small-note">${escapeHtml(ability.nextCheck)}</span>
+                </div>
+            `).join("")}
+        </div>
+    `;
 }
 
 function renderReportSignals(signals) {
@@ -7894,7 +10297,7 @@ function renderReportRecommendations(recommendations) {
 
 function renderReportExerciseTable(rows) {
     if (!rows.length) {
-        return `<p class="muted">No compile evidence has been recorded in this browser session yet.</p>`;
+        return `<p class="muted">No compile evidence has been recorded in this browser session yet. Stored completion can still appear in the matrix, but attempt-level diagnosis needs fresh runs.</p>`;
     }
 
     return `
@@ -8105,6 +10508,11 @@ renderConceptTags([]);
 resetPredictionPanel();
 renderLessonStatus(null);
 renderTeacherInsights();
+const savedReviewLabTaskId = localStorage.getItem(REVIEW_LAB_ACTIVE_KEY);
+if (savedReviewLabTaskId && REVIEW_LAB_TASKS.some(task => task.id === savedReviewLabTaskId)) {
+    activeReviewLabTaskId = savedReviewLabTaskId;
+}
+renderReviewLab();
 renderDashboard();
 renderQuestionBank();
 renderInitialConsole();

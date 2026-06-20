@@ -1,0 +1,70 @@
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://127.0.0.1:5061
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:5061/?v=code-space-test - - -
+info: Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware[2]
+      Sending file. Request path: '/index.html'. Physical path: 'D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem\wwwroot\index.html'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:5061/index.html?v=code-space-test - 200 23691 text/html 13.1138ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:5061/?v=code-space-test - - -
+info: Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware[2]
+      Sending file. Request path: '/index.html'. Physical path: 'D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem\wwwroot\index.html'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:5061/index.html?v=code-space-test - 200 23691 text/html 1.1096ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:5061/?v=code-space-test - - -
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:5061/app.js?v=code-space-test - - -
+info: Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware[2]
+      Sending file. Request path: '/index.html'. Physical path: 'D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem\wwwroot\index.html'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:5061/index.html?v=code-space-test - 200 23691 text/html 0.9907ms
+info: Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware[2]
+      Sending file. Request path: '/app.js'. Physical path: 'D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem\wwwroot\app.js'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:5061/app.js?v=code-space-test - 200 125052 text/javascript 1.0771ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 POST http://127.0.0.1:5061/api/execution/trace - application/json 136
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 POST http://127.0.0.1:5061/api/execution/trace - 404 0 - 6.8160ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[16]
+      Request reached the end of the middleware pipeline without being handled by application code. Request path: POST http://127.0.0.1:5061/api/execution/trace, Response status code: 404
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 POST http://127.0.0.1:5061/api/execution/run - application/json 136
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'LoopVisualizerSystem.Controllers.ExecutionController.ExecuteCode (LoopVisualizerSystem)'
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[102]
+      Route matched with {action = "ExecuteCode", controller = "Execution"}. Executing controller action with signature Microsoft.AspNetCore.Mvc.IActionResult ExecuteCode(LoopVisualizerSystem.Controllers.CodeRequest) on controller LoopVisualizerSystem.Controllers.ExecutionController (LoopVisualizerSystem).
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ObjectResultExecutor[1]
+      Executing OkObjectResult, writing value of type 'System.Collections.Generic.List`1[[LoopVisualizerSystem.Controllers.TelemetryStep, LoopVisualizerSystem, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[105]
+      Executed action LoopVisualizerSystem.Controllers.ExecutionController.ExecuteCode (LoopVisualizerSystem) in 80.8301ms
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'LoopVisualizerSystem.Controllers.ExecutionController.ExecuteCode (LoopVisualizerSystem)'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 POST http://127.0.0.1:5061/api/execution/run - 200 - application/json;+charset=utf-8 97.2600ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:5061/?v=final-check - - -
+info: Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware[2]
+      Sending file. Request path: '/index.html'. Physical path: 'D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem\wwwroot\index.html'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:5061/index.html?v=final-check - 200 23691 text/html 0.4850ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:5061/?v=final-code-space - - -
+info: Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware[2]
+      Sending file. Request path: '/index.html'. Physical path: 'D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem\wwwroot\index.html'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:5061/index.html?v=final-code-space - 200 23691 text/html 0.5462ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:5061/app.js?v=final-code-space - - -
+info: Microsoft.AspNetCore.StaticFiles.StaticFileMiddleware[2]
+      Sending file. Request path: '/app.js'. Physical path: 'D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem\wwwroot\app.js'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:5061/app.js?v=final-code-space - 200 125184 text/javascript 1.1969ms

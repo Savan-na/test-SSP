@@ -80,16 +80,45 @@
         .blank-input { width: 100%; min-height: 34px; background: #171b1a; color: #ffffff; border: 1px solid #3f4e46; border-radius: 6px; padding: 7px 9px; font-family: Consolas, "SFMono-Regular", monospace; font-size: 13px; outline: none; }
         .blank-input:focus { border-color: #7cc7ff; box-shadow: 0 0 0 3px rgba(124, 199, 255, 0.12); }
         .blank-input::placeholder { color: #6f8078; }
+        .level-zero-panel { border-color: rgba(124, 199, 255, 0.42); }
+        .choice-workspace { display: grid; grid-template-columns: minmax(260px, 1.1fr) minmax(240px, 0.9fr); gap: 12px; align-items: start; }
+        .choice-slots, .choice-bank { display: grid; gap: 9px; min-width: 0; }
+        .choice-bank { padding: 10px; background: #171b1a; border: 1px solid #34423a; border-radius: 6px; }
+        .choice-bank-title { color: #7cc7ff; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
+        .choice-chip-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .choice-chip { min-height: 34px; max-width: 100%; padding: 7px 9px; background: #202724; color: #ffffff; border: 1px solid #3f4e46; border-radius: 6px; cursor: grab; text-align: left; }
+        .choice-chip:hover:not(:disabled) { border-color: #7cc7ff; background: #26302c; }
+        .choice-chip:active:not(:disabled) { cursor: grabbing; }
+        .choice-chip:disabled { opacity: 0.38; cursor: not-allowed; }
+        .choice-chip code, .choice-drop-zone code, .level-zero-answer-panel code { font-family: Consolas, "SFMono-Regular", monospace; font-size: 12px; color: #f5faf7; overflow-wrap: anywhere; }
+        .choice-slot-row { display: grid; grid-template-columns: minmax(130px, 0.7fr) minmax(160px, 1fr) auto auto; gap: 8px; align-items: center; padding: 10px; background: #171b1a; border: 1px solid #34423a; border-radius: 6px; }
+        .choice-slot-row.correct { border-color: rgba(104, 211, 145, 0.78); background: rgba(104, 211, 145, 0.08); }
+        .choice-slot-row.wrong { border-color: rgba(255, 123, 114, 0.78); background: rgba(255, 123, 114, 0.08); }
+        .choice-slot-meta { display: grid; gap: 3px; min-width: 0; }
+        .choice-slot-meta strong { color: #f4c95d; font-family: Consolas, "SFMono-Regular", monospace; font-size: 12px; }
+        .choice-slot-meta span { color: #b7c9c0; font-size: 12px; line-height: 1.35; }
+        .choice-drop-zone { min-height: 36px; display: grid; align-items: center; padding: 7px 9px; background: #101312; border: 1px dashed #3f4e46; border-radius: 6px; }
+        .choice-slot-row.correct .choice-drop-zone { border-color: #68d391; }
+        .choice-slot-row.wrong .choice-drop-zone { border-color: #ff7b72; }
+        .choice-status { min-width: 74px; color: #91a39a; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+        .choice-slot-row.correct .choice-status { color: #68d391; }
+        .choice-slot-row.wrong .choice-status { color: #ff7b72; }
+        .choice-slot-feedback { grid-column: 1 / -1; padding: 8px 9px; border-radius: 6px; background: rgba(255, 123, 114, 0.08); color: #ffd7d2; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+        .choice-slot-feedback.good { background: rgba(104, 211, 145, 0.08); color: #d9ffe8; }
+        .level-zero-answer-panel { display: grid; gap: 8px; padding: 10px; background: rgba(124, 199, 255, 0.08); border: 1px solid rgba(124, 199, 255, 0.42); border-radius: 6px; }
+        .level-zero-answer-panel strong { color: #ffffff; font-size: 13px; }
+        .level-zero-answer-panel div { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: baseline; color: #b7c9c0; font-size: 12px; line-height: 1.45; }
         .mode-panel { display: grid; gap: 12px; padding: 12px; background: #101312; border: 1px solid #34423a; border-radius: 6px; }
         .mode-panel-title { color: #f5faf7; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
         .mode-panel-copy { color: #b7c9c0; font-size: 13px; line-height: 1.55; }
-        .mission-current { display: grid; gap: 8px; padding: 12px; background: rgba(104, 211, 145, 0.08); border: 1px solid rgba(104, 211, 145, 0.42); border-radius: 6px; }
+        .mission-current { display: grid; gap: 7px; padding: 12px; background: rgba(104, 211, 145, 0.08); border: 1px solid rgba(104, 211, 145, 0.42); border-radius: 6px; }
         .mission-current strong { color: #ffffff; font-size: 14px; }
         .mission-current span { color: #dbe7df; font-size: 13px; line-height: 1.5; }
-        .mission-action-guide { display: grid; gap: 8px; padding: 12px; background: #171b1a; border: 1px solid rgba(124, 199, 255, 0.42); border-radius: 6px; }
+        .mission-current span b { color: #7cc7ff; }
+        .mission-action-guide { display: grid; gap: 7px; padding: 10px 12px; background: #171b1a; border: 1px solid rgba(124, 199, 255, 0.42); border-radius: 6px; }
         .mission-action-title { color: #7cc7ff; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
-        .mission-action-row { display: grid; grid-template-columns: 24px 1fr; gap: 9px; align-items: start; color: #dbe7df; font-size: 12px; line-height: 1.5; }
-        .mission-action-row strong { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; background: rgba(124, 199, 255, 0.12); color: #7cc7ff; font-size: 11px; }
+        .mission-action-row { display: grid; grid-template-columns: 48px 1fr; gap: 9px; align-items: start; color: #dbe7df; font-size: 12px; line-height: 1.45; }
+        .mission-action-row strong { display: inline-flex; align-items: center; justify-content: center; min-width: 42px; height: 22px; padding: 0 7px; border-radius: 999px; background: rgba(124, 199, 255, 0.12); color: #7cc7ff; font-size: 10px; text-transform: uppercase; }
         .mission-rules { display: grid; gap: 6px; padding: 10px; background: #171b1a; border: 1px solid #34423a; border-radius: 6px; color: #b7c9c0; font-size: 12px; line-height: 1.45; }
         .mission-rules strong { color: #7cc7ff; }
         .mission-feedback { display: grid; gap: 6px; padding: 12px; border-radius: 6px; border: 1px solid #34423a; background: #171b1a; color: #dbe7df; font-size: 13px; line-height: 1.45; }
@@ -147,7 +176,7 @@
         .quality-item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px; border-radius: 6px; background: #171b1a; color: #dbe7df; font-size: 12px; }
         .quality-item.pass span:last-child { color: #68d391; font-weight: 800; }
         .quality-item.fix span:last-child { color: #f4c95d; font-weight: 800; }
-        section.dashboard-view, section.question-bank-view { display: none; gap: 18px; }
+        section.dashboard-view, section.question-bank-view, section.review-lab-view, section.quality-studio-view { display: none; gap: 18px; }
         body.dashboard-active .focus-rules,
         body.dashboard-active .top-row,
         body.dashboard-active .info-row,
@@ -155,9 +184,127 @@
         body.question-bank-active .focus-rules,
         body.question-bank-active .top-row,
         body.question-bank-active .info-row,
-        body.question-bank-active .practice-layout { display: none; }
+        body.question-bank-active .practice-layout,
+        body.review-lab-active .focus-rules,
+        body.review-lab-active .top-row,
+        body.review-lab-active .info-row,
+        body.review-lab-active .practice-layout,
+        body.quality-studio-active .focus-rules,
+        body.quality-studio-active .top-row,
+        body.quality-studio-active .info-row,
+        body.quality-studio-active .practice-layout { display: none; }
         body.dashboard-active section.dashboard-view { display: grid; }
         body.question-bank-active section.question-bank-view { display: grid; }
+        body.review-lab-active section.review-lab-view { display: grid; }
+        body.quality-studio-active section.quality-studio-view { display: grid; }
+        .review-lab-toolbar { display: grid; grid-template-columns: minmax(260px, 0.75fr) minmax(240px, 1fr) auto; gap: 12px 18px; align-items: end; padding: 14px; background: #171b1a; border: 1px solid #34423a; border-radius: 8px; }
+        .review-toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; }
+        .review-session-state { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #2b3631; color: #91a39a; font-size: 12px; line-height: 1.45; }
+        .review-session-state strong { color: #68d391; }
+        .review-progress { min-height: 42px; display: flex; align-items: center; color: #b7c9c0; font-size: 12px; line-height: 1.45; }
+        .review-progress strong { color: #7cc7ff; }
+        .review-requirement { display: grid; gap: 10px; }
+        .review-requirement h2 { color: #ffffff; font-size: 18px; letter-spacing: 0; }
+        .review-requirement p { color: #dbe7df; font-size: 14px; line-height: 1.6; }
+        .review-constraint-list { display: grid; gap: 6px; padding-left: 20px; color: #b7c9c0; font-size: 13px; line-height: 1.5; }
+        .review-workspace { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 1fr); gap: 18px; align-items: start; }
+        .review-code-editor { width: 100%; min-height: 360px; resize: vertical; background: #0c100f; color: #b9d8ff; border: 0; padding: 16px; font-family: Consolas, "SFMono-Regular", monospace; font-size: 13px; line-height: 1.6; outline: none; tab-size: 4; letter-spacing: 0; }
+        .review-code-editor:focus { box-shadow: inset 0 0 0 2px rgba(104, 211, 145, 0.5); }
+        .review-control-stack { display: grid; gap: 18px; }
+        .review-control-body { display: grid; gap: 12px; padding: 14px; }
+        .review-control-copy { color: #91a39a; font-size: 12px; line-height: 1.45; }
+        .review-option-list { display: grid; gap: 8px; }
+        .review-option-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid #2b3631; color: #dbe7df; font-size: 13px; line-height: 1.45; cursor: pointer; }
+        .review-option-row:last-child { border-bottom: 0; }
+        .review-option-row input { margin-top: 3px; accent-color: #68d391; }
+        .review-option-row strong { display: block; color: #ffffff; font-size: 13px; margin-bottom: 2px; }
+        .review-option-row span { color: #91a39a; font-size: 12px; }
+        .review-reason { width: 100%; min-height: 92px; resize: vertical; background: #101312; color: #ffffff; border: 1px solid #3f4e46; border-radius: 6px; padding: 10px; font-size: 13px; line-height: 1.5; outline: none; }
+        .review-reason:focus { border-color: #7cc7ff; box-shadow: 0 0 0 3px rgba(124, 199, 255, 0.12); }
+        .review-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .review-result-panel { display: grid; gap: 14px; }
+        .review-result-heading { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+        .review-result-heading strong { color: #ffffff; font-size: 16px; }
+        .review-result-heading span { color: #91a39a; font-size: 12px; }
+        .review-score-grid { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; }
+        .review-score-item { display: grid; gap: 4px; padding: 10px; background: #101312; border: 1px solid #34423a; border-radius: 6px; }
+        .review-score-item.pass { border-color: rgba(104, 211, 145, 0.68); }
+        .review-score-item.fix { border-color: rgba(244, 201, 93, 0.68); }
+        .review-score-item strong { color: #ffffff; font-size: 12px; }
+        .review-score-item span { color: #91a39a; font-size: 11px; line-height: 1.4; }
+        .review-test-results { display: grid; gap: 8px; }
+        .review-test-result { display: grid; grid-template-columns: auto 1fr; gap: 10px; padding: 9px 10px; border-left: 3px solid #f4c95d; background: #101312; font-size: 12px; line-height: 1.45; }
+        .review-test-result.pass { border-left-color: #68d391; }
+        .review-test-result strong { color: #ffffff; }
+        .review-test-result span { color: #b7c9c0; }
+        .review-feedback-box { padding: 11px 12px; border: 1px solid #34423a; border-radius: 6px; background: #101312; color: #dbe7df; font-size: 13px; line-height: 1.5; }
+        .review-feedback-box.passed { border-color: rgba(104, 211, 145, 0.7); background: rgba(104, 211, 145, 0.07); }
+        .review-feedback-box.failed { border-color: rgba(244, 201, 93, 0.7); background: rgba(244, 201, 93, 0.07); }
+        .review-feedback-box p { margin: 7px 0 0; }
+        .review-feedback-box pre { margin: 10px 0 0; padding: 10px; overflow: auto; background: #0c100f; color: #b9d8ff; border-radius: 6px; font-family: Consolas, "SFMono-Regular", monospace; font-size: 12px; line-height: 1.5; white-space: pre; }
+        .review-dashboard { display: grid; gap: 12px; }
+        .review-dashboard-summary { color: #b7c9c0; font-size: 13px; line-height: 1.5; }
+        .review-ability-list { display: grid; gap: 8px; }
+        .review-ability-row { display: grid; grid-template-columns: minmax(150px, 0.45fr) 1fr auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid #2b3631; }
+        .review-ability-row:last-child { border-bottom: 0; }
+        .review-ability-row strong { color: #ffffff; font-size: 12px; }
+        .review-ability-row span { color: #91a39a; font-size: 12px; }
+        .review-evidence-state { color: #7cc7ff !important; font-weight: 800; white-space: nowrap; }
+        .review-history { display: grid; gap: 8px; }
+        .review-history-empty { color: #91a39a; font-size: 13px; line-height: 1.5; }
+        .review-history-row { display: grid; grid-template-columns: auto minmax(170px, 1fr) repeat(5, minmax(64px, auto)) auto; gap: 10px; align-items: center; padding: 10px; background: #101312; border: 1px solid #34423a; border-radius: 6px; }
+        .review-history-row.passed { border-color: rgba(104, 211, 145, 0.58); }
+        .review-history-row strong { color: #ffffff; font-size: 12px; }
+        .review-history-meta { color: #91a39a; font-size: 11px; line-height: 1.4; }
+        .review-history-signal { color: #f4c95d; font-size: 10px; font-weight: 800; text-align: center; }
+        .review-history-signal.pass { color: #68d391; }
+        .review-next-action { border-left: 3px solid #7cc7ff; }
+        .quality-toolbar { display: grid; grid-template-columns: minmax(280px, 0.8fr) 1fr auto; gap: 12px 18px; align-items: end; padding: 14px; background: #171b1a; border: 1px solid #34423a; border-radius: 8px; }
+        .quality-toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+        .quality-session-state { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #2b3631; color: #91a39a; font-size: 12px; line-height: 1.45; }
+        .quality-session-state strong { color: #68d391; }
+        .quality-requirement { display: grid; gap: 10px; }
+        .quality-requirement h2 { margin: 0; color: #ffffff; font-size: 18px; letter-spacing: 0; }
+        .quality-requirement p { margin: 0; color: #dbe7df; font-size: 14px; line-height: 1.55; }
+        .quality-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+        .quality-version { min-width: 0; border: 1px solid #34423a; border-radius: 8px; overflow: hidden; background: #0c100f; }
+        .quality-version-header { display: flex; justify-content: space-between; gap: 10px; padding: 11px 14px; background: #1d2823; border-bottom: 1px solid #34423a; }
+        .quality-version-header strong { color: #ffffff; font-size: 13px; }
+        .quality-version-header span { color: #91a39a; font-size: 11px; }
+        .quality-version pre { margin: 0; padding: 15px; overflow: auto; color: #b9d8ff; font-family: Consolas, "SFMono-Regular", monospace; font-size: 12px; line-height: 1.55; white-space: pre; }
+        .quality-dimension-list { display: grid; }
+        .quality-dimension-row { display: grid; grid-template-columns: minmax(150px, 0.45fr) 1fr auto; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid #2b3631; }
+        .quality-dimension-row:last-child { border-bottom: 0; }
+        .quality-dimension-copy strong { display: block; color: #ffffff; font-size: 13px; }
+        .quality-dimension-copy span { color: #91a39a; font-size: 11px; line-height: 1.4; }
+        .quality-choice { display: inline-grid; grid-template-columns: repeat(3, minmax(64px, 1fr)); border: 1px solid #3f4e46; border-radius: 6px; overflow: hidden; }
+        .quality-choice label { position: relative; cursor: pointer; }
+        .quality-choice input { position: absolute; opacity: 0; pointer-events: none; }
+        .quality-choice span { display: block; padding: 8px 10px; color: #b7c9c0; background: #101312; border-right: 1px solid #3f4e46; text-align: center; font-size: 11px; font-weight: 800; }
+        .quality-choice label:last-child span { border-right: 0; }
+        .quality-choice input:checked + span { color: #ffffff; background: #246cba; }
+        .quality-focus-tag { color: #7cc7ff; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+        .quality-overall { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px; align-items: center; padding-top: 12px; border-top: 1px solid #34423a; }
+        .quality-overall strong { color: #ffffff; font-size: 13px; }
+        .quality-refactor-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 18px; align-items: stretch; }
+        .quality-editor { width: 100%; min-height: 300px; resize: vertical; background: #0c100f; color: #b9d8ff; border: 0; padding: 16px; font-family: Consolas, "SFMono-Regular", monospace; font-size: 13px; line-height: 1.6; outline: none; tab-size: 4; letter-spacing: 0; }
+        .quality-editor:focus { box-shadow: inset 0 0 0 2px rgba(104, 211, 145, 0.5); }
+        .quality-explanation-panel { display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding: 14px; }
+        .quality-explanation-panel p { margin: 0; color: #91a39a; font-size: 12px; line-height: 1.5; }
+        .quality-explanation { width: 100%; min-height: 180px; resize: vertical; background: #101312; color: #ffffff; border: 1px solid #3f4e46; border-radius: 6px; padding: 11px; font-size: 13px; line-height: 1.5; outline: none; }
+        .quality-explanation:focus { border-color: #7cc7ff; box-shadow: 0 0 0 3px rgba(124, 199, 255, 0.12); }
+        .quality-results { display: grid; gap: 14px; }
+        .quality-score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; }
+        .quality-score-cell { padding: 10px; border: 1px solid #34423a; border-radius: 6px; background: #101312; }
+        .quality-score-cell.pass { border-color: rgba(104, 211, 145, 0.68); }
+        .quality-score-cell.fix { border-color: rgba(244, 201, 93, 0.68); }
+        .quality-score-cell strong { display: block; color: #ffffff; font-size: 11px; margin-bottom: 4px; }
+        .quality-score-cell span { color: #91a39a; font-size: 10px; line-height: 1.4; }
+        .quality-history { display: grid; gap: 8px; }
+        .quality-history-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 12px; align-items: center; padding: 10px; border: 1px solid #34423a; border-radius: 6px; background: #101312; }
+        .quality-history-row.passed { border-color: rgba(104, 211, 145, 0.58); }
+        .quality-history-row strong { color: #ffffff; font-size: 12px; }
+        .quality-history-row span { color: #91a39a; font-size: 11px; }
         .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
         .learning-tree { display: grid; gap: 14px; }
         .tree-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; color: #91a39a; font-size: 12px; line-height: 1.4; }
@@ -227,6 +374,24 @@
         .dashboard-stat span { color: #91a39a; font-size: 12px; }
         .question-bank { display: grid; gap: 16px; }
         .bank-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; background: #101312; border: 1px solid #34423a; border-radius: 8px; color: #b7c9c0; font-size: 13px; }
+        .bank-editor { display: grid; gap: 14px; padding: 16px; background: #101312; border: 1px solid #7cc7ff; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(124,199,255,0.12); }
+        .bank-editor-head { display: flex; justify-content: space-between; gap: 14px; align-items: start; }
+        .bank-editor-head h2 { margin: 2px 0 5px; color: #ffffff; font-size: 18px; letter-spacing: 0; }
+        .bank-editor-head p, .bank-editor-note { margin: 0; color: #b7c9c0; font-size: 12px; line-height: 1.45; }
+        .bank-editor-kicker { color: #7cc7ff; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+        .bank-editor-form { display: grid; gap: 12px; }
+        .bank-editor-form label { display: grid; gap: 6px; color: #b7c9c0; font-size: 12px; font-weight: 800; }
+        .bank-editor-grid { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 10px; }
+        .bank-editor-grid.two { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
+        .bank-editor-input, .bank-editor-textarea { width: 100%; background: #171b1a; color: #ffffff; border: 1px solid #3f4e46; border-radius: 6px; padding: 9px 10px; font-size: 13px; outline: none; }
+        .bank-editor-input:focus, .bank-editor-textarea:focus { border-color: #7cc7ff; box-shadow: 0 0 0 3px rgba(124,199,255,0.12); }
+        .bank-editor-textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
+        .bank-editor-textarea.short { min-height: 68px; }
+        .bank-editor-textarea.code, .bank-editor-textarea.json { min-height: 150px; font-family: Consolas, "SFMono-Regular", monospace; font-size: 12px; }
+        .bank-editor-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .bank-editor-feedback { min-height: 20px; color: #91a39a; font-size: 12px; line-height: 1.4; }
+        .bank-editor-feedback.good { color: #68d391; font-weight: 800; }
+        .bank-editor-feedback.error { color: #ff7b72; font-weight: 800; }
         .bank-topic { display: grid; gap: 12px; padding: 14px; background: #101312; border: 1px solid #34423a; border-radius: 8px; }
         .bank-topic.active { border-color: #7cc7ff; box-shadow: inset 0 0 0 1px rgba(124, 199, 255, 0.18); }
         .bank-topic-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -237,9 +402,11 @@
         .bank-level { display: grid; gap: 8px; padding: 10px; background: #171b1a; border: 1px solid #34423a; border-radius: 8px; }
         .bank-level-head { display: flex; justify-content: space-between; gap: 10px; color: #f5faf7; font-size: 13px; font-weight: 800; }
         .bank-task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
-        .bank-task { display: grid; gap: 5px; text-align: left; padding: 10px; border: 1px solid #34423a; border-radius: 6px; background: #101312; color: #dbe7df; cursor: default; }
+        .bank-task { display: grid; gap: 5px; text-align: left; padding: 10px; border: 1px solid #34423a; border-radius: 6px; background: #101312; color: #dbe7df; cursor: pointer; font: inherit; }
+        .bank-task:hover { border-color: #7cc7ff; background: #171f1d; }
         .bank-task.current-batch { border-color: #7cc7ff; background: rgba(124, 199, 255, 0.08); }
         .bank-task.completed { border-color: #68d391; background: rgba(104, 211, 145, 0.08); }
+        .bank-task.teacher-modified { border-style: dashed; }
         .bank-task strong { color: #ffffff; font-size: 12px; line-height: 1.35; }
         .bank-task span { color: #91a39a; font-size: 11px; line-height: 1.35; }
         .function-hints { display: grid; gap: 9px; padding: 12px; background: #101312; border: 1px solid #34423a; border-radius: 6px; }
@@ -319,6 +486,19 @@
             body { padding: 14px; }
             .header { align-items: flex-start; flex-direction: column; }
             .header-actions, .top-row, .info-row, .practice-layout, .trace-layout, .prediction-lab { grid-template-columns: 1fr; width: 100%; }
+            .choice-workspace, .choice-slot-row { grid-template-columns: 1fr; }
+            .bank-editor-head { flex-direction: column; }
+            .bank-editor-grid, .bank-editor-grid.two { grid-template-columns: 1fr; }
+            .review-lab-toolbar, .review-workspace, .review-score-grid { grid-template-columns: 1fr; }
+            .review-toolbar-actions { justify-content: flex-start; }
+            .review-session-state { grid-column: 1; flex-direction: column; }
+            .review-history-row { grid-template-columns: auto 1fr auto; }
+            .review-history-signal { display: none; }
+            .quality-toolbar, .quality-compare-grid, .quality-refactor-grid, .quality-dimension-row { grid-template-columns: 1fr; }
+            .quality-toolbar-actions { justify-content: flex-start; }
+            .quality-session-state { grid-column: 1; flex-direction: column; }
+            .quality-dimension-row { gap: 8px; }
+            .quality-choice { width: 100%; }
             .workspace-body, .task-content { min-height: 0; }
             .workspace-body { height: var(--workspace-height, 156px); }
             .slider-control { grid-template-columns: 1fr; }
@@ -336,6 +516,8 @@
         </div>
         <div class="header-actions">
             <button class="secondary-btn view-tab active" id="btn-practice-view" type="button">Practice</button>
+            <button class="secondary-btn view-tab" id="btn-review-lab-view" type="button">Review Lab</button>
+            <button class="secondary-btn view-tab" id="btn-quality-studio-view" type="button">Quality Studio</button>
             <button class="secondary-btn view-tab" id="btn-dashboard-view" type="button">Dashboard</button>
             <button class="secondary-btn view-tab" id="btn-question-bank-view" type="button">Question Bank</button>
             <div class="export-menu" id="export-report-menu">
@@ -346,12 +528,12 @@
                         <select class="report-scope-select" id="report-scope-select"></select>
                     </label>
                     <button class="report-option" id="btn-report-print" type="button" role="menuitem">
-                        <strong>Print PDF</strong>
-                        <span>Open a print-ready report and launch the browser print dialog.</span>
+                        <strong>Print Mastery PDF</strong>
+                        <span>Open a teacher-ready mastery report and launch the browser print dialog.</span>
                     </button>
                     <button class="report-option" id="btn-report-html" type="button" role="menuitem">
-                        <strong>Open HTML</strong>
-                        <span>Open a readable learning report in a new tab.</span>
+                        <strong>Open Mastery HTML</strong>
+                        <span>Open the same diagnostic report in a readable browser tab.</span>
                     </button>
                 </div>
             </div>
@@ -361,8 +543,8 @@
     </div>
 
     <section class="focus-rules" aria-label="Practice rules">
-        <div><strong>Goal:</strong> complete Level 1 to Level 5 in order for the selected topic.</div>
-        <div><strong>How to complete a level:</strong> fill the key expression or edit Code, then click Compile & Run.</div>
+        <div><strong>Goal:</strong> complete Level 0 to Level 5 in order for the selected topic.</div>
+        <div><strong>How to complete a level:</strong> choose code blocks, fill the key expression, or edit Code, then click Compile & Run.</div>
         <div><strong>Auto-check:</strong> the app marks a level Completed automatically when Compile & Run meets all task checks.</div>
     </section>
 
@@ -439,6 +621,143 @@ for number in numbers:
         </section>
     </section>
 
+    <section class="review-lab-view" id="review-lab-view" aria-label="AI code review lab">
+        <div class="review-lab-toolbar">
+            <div class="flow-field">
+                <label class="field-label" for="review-task-select">Review Challenge</label>
+                <select id="review-task-select"></select>
+            </div>
+            <div class="review-progress" id="review-progress-label"></div>
+            <div class="review-toolbar-actions">
+                <button class="secondary-btn" id="btn-review-pause" type="button">Save &amp; Pause</button>
+                <button class="secondary-btn" id="btn-review-last-attempt" type="button">Review Last Attempt</button>
+                <button class="secondary-btn" id="btn-review-retry" type="button">Start New Attempt</button>
+                <button class="secondary-btn" id="btn-review-next" type="button">Next Challenge</button>
+            </div>
+            <div class="review-session-state" id="review-session-state"></div>
+        </div>
+
+        <section class="surface">
+            <div class="surface-header">Requirement</div>
+            <div class="surface-body review-requirement" id="review-requirement"></div>
+        </section>
+
+        <div class="review-workspace">
+            <section class="surface">
+                <div class="surface-header">
+                    <span>AI-generated Code</span>
+                    <button class="secondary-btn" id="btn-review-restore" type="button">Restore AI Code</button>
+                </div>
+                <textarea class="review-code-editor" id="review-ai-code" spellcheck="false" wrap="off"></textarea>
+            </section>
+
+            <div class="review-control-stack">
+                <section class="surface">
+                    <div class="surface-header">1. Identify Issues</div>
+                    <div class="review-control-body">
+                        <p class="review-control-copy">Select every claim that is genuinely wrong with this code.</p>
+                        <div class="review-option-list" id="review-issue-list"></div>
+                    </div>
+                </section>
+                <section class="surface">
+                    <div class="surface-header">2. Choose Tests</div>
+                    <div class="review-control-body">
+                        <p class="review-control-copy">Choose the tests needed to prove the requirement, including its boundary cases.</p>
+                        <div class="review-option-list" id="review-test-list"></div>
+                    </div>
+                </section>
+                <section class="surface">
+                    <div class="surface-header">3. Explain Your Fix</div>
+                    <div class="review-control-body">
+                        <textarea class="review-reason" id="review-reason" placeholder="Explain the defect, why your tests expose it, and why your fix is safer."></textarea>
+                        <div class="review-actions">
+                            <button class="btn" id="btn-review-evaluate" type="button">Evaluate Review &amp; Fix</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <section class="surface">
+            <div class="surface-header">Review Evidence</div>
+            <div class="surface-body review-result-panel" id="review-results"></div>
+        </section>
+
+        <section class="surface">
+            <div class="surface-header">Attempt History</div>
+            <div class="surface-body review-history" id="review-history"></div>
+        </section>
+    </section>
+
+    <section class="quality-studio-view" id="quality-studio-view" aria-label="Code quality training studio">
+        <div class="quality-toolbar">
+            <div class="flow-field">
+                <label class="field-label" for="quality-task-select">Quality Challenge</label>
+                <select id="quality-task-select"></select>
+            </div>
+            <div class="review-progress" id="quality-progress-label"></div>
+            <div class="quality-toolbar-actions">
+                <button class="secondary-btn" id="btn-quality-pause" type="button">Save &amp; Pause</button>
+                <button class="secondary-btn" id="btn-quality-last" type="button">Review Last Attempt</button>
+                <button class="secondary-btn" id="btn-quality-retry" type="button">Start New Attempt</button>
+                <button class="secondary-btn" id="btn-quality-next" type="button">Next Challenge</button>
+            </div>
+            <div class="quality-session-state" id="quality-session-state"></div>
+        </div>
+
+        <section class="surface">
+            <div class="surface-header">Engineering Requirement</div>
+            <div class="surface-body quality-requirement" id="quality-requirement"></div>
+        </section>
+
+        <section class="surface">
+            <div class="surface-header">Compare Two Implementations</div>
+            <div class="surface-body quality-compare-grid">
+                <article class="quality-version">
+                    <div class="quality-version-header"><strong>Version A</strong><span id="quality-version-a-label"></span></div>
+                    <pre><code id="quality-version-a"></code></pre>
+                </article>
+                <article class="quality-version">
+                    <div class="quality-version-header"><strong>Version B</strong><span id="quality-version-b-label"></span></div>
+                    <pre><code id="quality-version-b"></code></pre>
+                </article>
+            </div>
+        </section>
+
+        <section class="surface">
+            <div class="surface-header">Quality Judgment</div>
+            <div class="surface-body">
+                <div class="quality-dimension-list" id="quality-dimension-list"></div>
+                <div class="quality-overall">
+                    <strong>Which version is the better engineering choice overall?</strong>
+                    <div class="quality-choice" id="quality-overall-choice"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="surface">
+            <div class="surface-header">Refactor and Defend Your Decision</div>
+            <div class="quality-refactor-grid">
+                <textarea class="quality-editor" id="quality-code-input" spellcheck="false" wrap="off"></textarea>
+                <div class="quality-explanation-panel">
+                    <p>Explain the trade-off. Name the quality dimensions that improved, the evidence that supports your judgment, and anything the refactor deliberately does not optimize.</p>
+                    <textarea class="quality-explanation" id="quality-explanation" placeholder="Explain why this version is better engineering, not merely shorter."></textarea>
+                    <button class="btn" id="btn-quality-evaluate" type="button">Evaluate Quality Decision</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="surface">
+            <div class="surface-header">Quality Evidence</div>
+            <div class="surface-body quality-results" id="quality-results"></div>
+        </section>
+
+        <section class="surface">
+            <div class="surface-header">Quality Attempt History</div>
+            <div class="surface-body quality-history" id="quality-history"></div>
+        </section>
+    </section>
+
     <section class="dashboard-view" id="dashboard-view" aria-label="Learning dashboard">
         <section class="surface">
             <div class="surface-header">Learning Dashboard</div>
@@ -453,6 +772,14 @@ for number in numbers:
         <section class="surface">
             <div class="surface-header">Learning Tree</div>
             <div class="surface-body" id="dashboard-topic-table"></div>
+        </section>
+        <section class="surface">
+            <div class="surface-header">AI Review Evidence</div>
+            <div class="surface-body" id="dashboard-review-evidence"></div>
+        </section>
+        <section class="surface">
+            <div class="surface-header">Code Quality Evidence</div>
+            <div class="surface-body" id="dashboard-quality-evidence"></div>
         </section>
     </section>
 
@@ -497,6 +824,7 @@ for number in numbers:
     </div>
 </div>
 
-    <script src="app.js?v=student-path-dashboard-v23-20260619"></script>
+    <script src="app.js?v=quality-studio-shell-v29-20260621"></script>
+    <script src="quality-studio.js?v=quality-stage3-v1-20260621"></script>
 </body>
 </html>

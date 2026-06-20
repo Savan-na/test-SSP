@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -53,6 +54,150 @@ namespace LoopVisualizerSystem.Controllers
                     System.IO.File.Delete(tempInputFile);
                 }
             }
+        }
+
+        [HttpPost("review-tests")]
+        public IActionResult ExecuteReviewTests([FromBody] ReviewTestRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Code))
+            {
+                return BadRequest("Review code cannot be empty.");
+            }
+
+            if (request.Tests == null || request.Tests.Count == 0)
+            {
+                return BadRequest("At least one review test is required.");
+            }
+
+            string tempInputFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_review.py");
+
+            try
+            {
+                System.IO.File.WriteAllText(tempInputFile, BuildReviewTestScript(request), Encoding.UTF8);
+                return Ok(RunReviewTestScript(tempInputFile));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Review test engine failed: {ex.Message}");
+            }
+            finally
+            {
+                if (System.IO.File.Exists(tempInputFile))
+                {
+                    System.IO.File.Delete(tempInputFile);
+                }
+            }
+        }
+
+        private static string BuildReviewTestScript(ReviewTestRequest request)
+        {
+            var script = new StringBuilder();
+            script.AppendLine(request.Code);
+            script.AppendLine();
+            script.AppendLine("import json as __ssp_json");
+            script.AppendLine("__ssp_results = []");
+
+            foreach (var test in request.Tests.Take(20))
+            {
+                string id = JsonSerializer.Serialize(test.Id ?? "test");
+                string name = JsonSerializer.Serialize(test.Name ?? test.Id ?? "Test");
+                string expression = string.IsNullOrWhiteSpace(test.Expression) ? "None" : test.Expression;
+                string expectedExpression = string.IsNullOrWhiteSpace(test.ExpectedExpression) ? "None" : test.ExpectedExpression;
+
+                script.AppendLine("try:");
+                script.AppendLine($"    __ssp_actual = ({expression})");
+                script.AppendLine($"    __ssp_expected = ({expectedExpression})");
+                script.AppendLine($"    __ssp_results.append({{'id': {id}, 'name': {name}, 'passed': __ssp_actual == __ssp_expected, 'actual': repr(__ssp_actual), 'expected': repr(__ssp_expected), 'error': ''}})");
+                script.AppendLine("except Exception as __ssp_error:");
+                script.AppendLine($"    __ssp_results.append({{'id': {id}, 'name': {name}, 'passed': False, 'actual': '', 'expected': repr({expectedExpression}), 'error': type(__ssp_error).__name__ + ': ' + str(__ssp_error)}})");
+            }
+
+            script.AppendLine("print('__SSP_REVIEW_RESULT__' + __ssp_json.dumps(__ssp_results, ensure_ascii=False))");
+            return script.ToString();
+        }
+
+        private static ReviewTestResponse RunReviewTestScript(string tempInputFile)
+        {
+            var attempts = new List<string>();
+            var candidates = new[]
+            {
+                new { Runner = "python", FileName = "python", Arguments = $"\"{tempInputFile}\"" },
+                new { Runner = "py -3", FileName = "py", Arguments = $"-3 \"{tempInputFile}\"" }
+            };
+
+            foreach (var candidate in candidates)
+            {
+                try
+                {
+                    var start = new ProcessStartInfo
+                    {
+                        FileName = candidate.FileName,
+                        Arguments = candidate.Arguments,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    using Process process = Process.Start(start) ?? throw new InvalidOperationException("Python review process could not be started.");
+                    Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+                    Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+
+                    if (!process.WaitForExit(6000))
+                    {
+                        process.Kill(entireProcessTree: true);
+                        process.WaitForExit();
+                        return new ReviewTestResponse
+                        {
+                            Passed = false,
+                            Error = "Execution timed out. Check for a loop or recursive call that does not stop."
+                        };
+                    }
+
+                    string stdout = stdoutTask.GetAwaiter().GetResult();
+                    string stderr = stderrTask.GetAwaiter().GetResult();
+                    const string marker = "__SSP_REVIEW_RESULT__";
+                    string? resultLine = stdout
+                        .Replace("\r\n", "\n")
+                        .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                        .LastOrDefault(line => line.StartsWith(marker, StringComparison.Ordinal));
+
+                    if (process.ExitCode == 0 && resultLine != null)
+                    {
+                        var tests = JsonSerializer.Deserialize<List<ReviewTestResult>>(
+                            resultLine.Substring(marker.Length),
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                        ) ?? new List<ReviewTestResult>();
+
+                        return new ReviewTestResponse
+                        {
+                            Passed = tests.Count > 0 && tests.All(test => test.Passed),
+                            Tests = tests
+                        };
+                    }
+
+                    if (process.ExitCode != 0)
+                    {
+                        return new ReviewTestResponse
+                        {
+                            Passed = false,
+                            Error = string.IsNullOrWhiteSpace(stderr)
+                                ? "Python could not run the submitted code."
+                                : stderr.Trim()
+                        };
+                    }
+
+                    attempts.Add($"{candidate.Runner}: no structured test result was returned");
+                }
+                catch (Win32Exception ex)
+                {
+                    attempts.Add($"{candidate.Runner}: {ex.Message}");
+                }
+            }
+
+            throw new InvalidOperationException(
+                "Python 3 is not available for review tests. " + string.Join(" | ", attempts)
+            );
         }
 
         private static string RunTraceEngine(string tempInputFile)
@@ -535,6 +680,37 @@ namespace LoopVisualizerSystem.Controllers
     }
 
     public class CodeRequest { public string? Code { get; set; } }
+
+    public class ReviewTestRequest
+    {
+        public string? Code { get; set; }
+        public List<ReviewTestCase> Tests { get; set; } = new List<ReviewTestCase>();
+    }
+
+    public class ReviewTestCase
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Expression { get; set; }
+        public string? ExpectedExpression { get; set; }
+    }
+
+    public class ReviewTestResponse
+    {
+        public bool Passed { get; set; }
+        public string Error { get; set; } = "";
+        public List<ReviewTestResult> Tests { get; set; } = new List<ReviewTestResult>();
+    }
+
+    public class ReviewTestResult
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public bool Passed { get; set; }
+        public string Actual { get; set; } = "";
+        public string Expected { get; set; } = "";
+        public string Error { get; set; } = "";
+    }
 
     public class PythonHealth
     {
