@@ -1,205 +1,228 @@
-# SSP v4 - 学习系统概览
+﻿# SSP v4 - Technical Overview
 
-SSP v4 是一个综合性编程学习平台，通过 **三大主要训练模块** 帮助学生系统地掌握程序设计。
+SSP v4 is an integrated programming learning platform designed to help students systematically master software development through three main training modules.
 
----
+## System Architecture
 
-## 📚 三大主要训练部分
+The solution is composed of:
 
-### 1️⃣ Practice（第一阶段）- 基础编程训练
+- A .NET 9 web application in `LoopVisualizerSystem` that serves static frontend assets and provides REST API endpoints.
+- A Python trace engine in `LoopVisualizerSystem/Engine/trace_engine.py` that executes submitted Python code and returns JSON traces.
+- Frontend assets in `LoopVisualizerSystem/wwwroot` that implement the user interface and manage learning flows.
 
-**目的**：让学生从零基础开始，按难度梯度逐步掌握编程概念和语言特性。
+The backend writes temporary Python files to the OS temp directory, executes them through the local Python interpreter, and parses the output.
 
-**使用流程**：
+## Dependencies and Runtime Constraints
 
-1. 进入系统后，在 **Practice Topic** 中选择想要练习的知识点（如条件判断、循环、递归等）
-2. 系统自动加载该知识点当前批次的下一个关卡
-3. 按 **Level 1 到 Level 5** 顺序依次完成，每个 Level 采用递进式难度设计
-4. 每次完成代码后点击 **Compile & Run** 进行自动判断
-5. 通过该 Topic 的全部 Level 后，可选择刷新新题组或复习前一套
+- .NET 9 SDK
+- Python 3
+- `python` or `py -3` must be available in PATH
 
-**难度设计**：
+This project is intended for local sandbox use only and is not suitable for production deployment.
 
-- **Level 1**：缺少关键表达式或调用，在 Fill-in-the-blank gate 中填空
-- **Level 2**：缺少一行代码，需将占位符替换为有效 Python 代码
-- **Level 3**：较少提示，完整编写一段可运行代码
-- **Level 4**：重构冗杂代码，用目标算法进行优化和精炼
-- **Level 5**：修复错误代码，排查运行错误并确保逻辑正确
+## Three Main Training Modules
 
-**关键功能**：
+### Practice (Phase 1) - Core Coding Training
 
-- **Practice Path**：在当前题下方显示操作清单，告诉学生在哪填代码、需要补什么类型、什么时候运行、如何判断通过
-- **Question Bank**：查看完整题库，按 Topic 和 Level 展示所有题目，标注所属题集（Set 1-5）和完成状态
-- **Dashboard**：以视觉化树形图展示学习进度。题目完成时点亮对应节点，完整 Topic 完成时点亮主节点
-- **题集循环**：每个 Topic 至少提供 5 套完整题组，学生可反复训练不同路径，完成后进入复习循环
+**Goal:** Build programming skills from the ground up with a structured progression.
 
----
+**Workflow:**
 
-### 2️⃣ AI Code Review（第二阶段）- 代码审查与问题诊断训练
+1. Select a topic in **Practice Topic** (such as conditionals, loops, recursion).
+2. The system loads the next challenge in the current topic batch.
+3. Work through levels **1 through 5** in order, each with increasing difficulty.
+4. Run code using **Compile & Run** to verify correctness.
+5. After completing all levels for a topic, choose to refresh with a new question set or review the previous one.
 
-**目的**：培养学生读懂 AI 生成的代码、判断真实问题、提出修复方案的能力。不要求从零手写，而是要求完成完整的工程判断链。
+**Difficulty Design:**
 
-**使用流程**：
+- **Level 1:** Fill in a missing expression or call using the Fill-in-the-blank gate.
+- **Level 2:** Replace a placeholder line with a valid Python statement.
+- **Level 3:** Write complete runnable code with minimal hints.
+- **Level 4:** Refactor verbose code into a more concise implementation using the target concept.
+- **Level 5:** Fix broken code and ensure the final logic and output are correct.
 
-1. 进入 `AI Code Review`，选择一个挑战题（共 10 个，分 Starter、Developing、Applied、Challenge 四个难度组）
-2. **阅读需求和工程约束**，理解代码应该做什么
-3. **识别代码问题**：判断 AI 生成代码中的真实缺陷，排除看似合理的错误说法
-4. **选择测试用例**：选择能覆盖正常情况和边界情况的测试，证明问题存在或验证修复
-5. **修复代码**：改正识别出的问题，用自己的语言解释缺陷、测试策略和修复理由
-6. 点击 **Evaluate Review & Fix**，系统真实运行测试并生成能力证据
+**Key Features:**
 
-**问题覆盖范围**：
-
-空输入、负数假设、阈值边界、代码重复、语法与返回值契约、错误测试预期、集合顺序、异常处理过宽、时间复杂度问题、数据丢失等
-
-**训练闭环**：
-
-- **自动保存**：代码、诊断选择、测试选择和解释自动保存为草稿
-- **暂停继续**：`Save & Pause` 可临时返回 Practice，下次进入时恢复原位置
-- **历史复盘**：`Attempt History` 保存所有评测证据，可重新打开任一次进行复盘
-- **重新挑战**：`Start New Attempt` 从原始 AI 代码重新开始，不删除已取得的能力证据
-- **详细反馈**：每次失败会分别解释漏选问题、误选说法、缺失测试、无效测试、运行错误等
-- **智能答案**：连续 3 次失败后才显示参考修复和详细解释
-
-**评测标准**：
-
-系统接受满足需求的不同实现，不要求逐字一致。每题包含未直接展示的附加测试，防止只针对示例写死答案。环境问题（Python 缺失、服务中断）不计为学生失败。
+- **Practice Path:** Provides step-by-step guidance for each challenge so learners know what code to enter, when to run it, and what the pass conditions are.
+- **Question Bank:** Provides the full question repository organized by topic and level, with metadata for the current batch and completion status.
+- **Dashboard:** Visualizes progress in a tree layout; nodes light up as challenges, levels, and topics are completed.
+- **Question Set Loop:** Each topic includes at least five complete sets of challenges, enabling repeated training and review cycles.
 
 ---
 
-### 3️⃣ Code Quality Check（第三阶段）- 代码质量评审训练
+### AI Code Review (Phase 2) - Code Inspection and Diagnostic Training
 
-**目的**：教导学生"代码能运行之后，还应该如何判断质量"，超越简单的正确性，理解工程权衡。
+**Goal:** Train learners to read AI-generated code, identify real defects, and produce reliable fixes. This module emphasizes engineering judgment over writing code from scratch.
 
-**使用流程**：
+**Workflow:**
 
-1. 进入 `Code Quality Check`，选择一个质量挑战题（共 6 个）
-2. **对比两个版本**：Version A 和 Version B 都能实现同样功能，但代码风格和品质不同
-3. **七维度独立评判**：对两个版本分别从以下维度进行评估
-4. **选择最优方案**：根据工程情境，选择总体更好的版本
-5. **重构较弱版本**：尝试改进较弱的版本，将其优化为更好的代码
-6. **解释权衡理由**：用自己的语言说明为什么这个方案更优
-7. 点击 **Evaluate Quality Decision**，系统综合检查维度判断、隐藏测试、代码结构和书面解释
+1. Open `AI Code Review` and select a challenge (10 challenges across Starter, Developing, Applied, and Challenge groups).
+2. **Read requirements and constraints** to understand the target behavior.
+3. **Identify real code issues** in the AI-generated solution and reject plausible but incorrect claims.
+4. **Choose test cases** that cover normal scenarios and edge cases.
+5. **Fix the code** and document the defect, the test strategy, and the remediation.
+6. Click **Evaluate Review & Fix** to run the backend evaluation and generate evidence.
 
-**七个评判维度**：
+**Coverage Areas:**
 
-1. **Correctness**：是否满足完整需求和边界情况
-2. **Readability**：其他工程师能否快速理解代码意图
-3. **Maintainability**：需求变化时能否安全修改
-4. **Simplicity**：是否删除不必要的机制，而不仅仅追求最少行数
-5. **Performance & Resources**：时间和内存消耗是否适合预期规模
-6. **Security**：是否泄露秘密或引入危险行为
-7. **Testability**：测试能否有效控制输入并观察结果
+Includes edge cases such as empty input, negative values, boundary thresholds, duplicated logic, syntax and return contract issues, incorrect test expectations, collection order problems, overly broad exception handling, quadratic complexity, and lost tail data.
 
-**题目特点**：
+**Training Loop:**
 
-题库刻意同时包含"较长代码更清楚"和"短代码更合理"的案例，防止学生误解质量评审只是追求最少行数。覆盖嵌套条件、集合查询性能、密码日志、全局依赖、冗余分支等常见质量问题。
+- **Auto-save:** Code, diagnosis choices, selected tests, and explanations are preserved as drafts.
+- **Save & Pause:** Return to Practice temporarily and resume the same challenge later.
+- **Attempt History:** Store formal evaluation evidence and reopen prior attempts for review.
+- **Start New Attempt:** Restart from the original AI code without discarding existing evidence.
+- **Detailed feedback:** The system separately explains missed issues, wrong diagnoses, missing or invalid tests, runtime failures, and structural constraints.
+- **Adaptive help:** Only after three real failing attempts does the system reveal a reference fix and detailed explanation.
 
-**功能特性**：
+**Evaluation Standard:**
 
-与 AI Code Review 一致：支持草稿保存、暂停继续、历史复盘、重新挑战等完整训练闭环。
+The platform accepts multiple valid implementations that satisfy the requirements. Hidden additional tests prevent overfitting to the example. Environment issues like missing Python or service disruptions are not counted as learner failures.
 
 ---
 
-## 🎯 学习报告与进度跟踪
+### Code Quality Check (Phase 3) - Code Quality Review Training
 
-### Dashboard 和学习可视化
+**Goal:** Teach learners to evaluate code quality once correctness has been established and to understand engineering trade-offs.
 
-- **Practice Pattern Tree**：以树形图展示学习进度，从初始节点出发连接到每个 Topic，再连接到各 Level，最后连接到具体题目
-- **Learning Tree**：记录学生学习状态，只展示当前和接下来的训练内容，不会铺开全量题库
+**Workflow:**
 
-### 导出学习报告
+1. Enter `Code Quality Check` and select a quality challenge (6 challenges available).
+2. **Compare two versions**: Version A and Version B implement the same behavior with different quality characteristics.
+3. **Evaluate both versions** across seven dimensions.
+4. **Choose the better overall solution** based on context and constraints.
+5. **Refactor the weaker version** to improve it.
+6. **Explain the trade-offs** in writing.
+7. Click **Evaluate Quality Decision** to validate the assessment, hidden tests, code structure, and explanation.
 
-点击 **Export Report** 后，可选择导出范围和格式：
+**Seven evaluation dimensions:**
 
-**导出范围**：
-- `All Practice Topics`：生成全局学习报告
-- 单个 Topic：只生成该 Topic 各 Level 的复盘报告
+1. **Correctness:** Does the code satisfy all requirements and edge cases?
+2. **Readability:** Can other developers quickly understand the intent?
+3. **Maintainability:** Can the code be safely changed when requirements evolve?
+4. **Simplicity:** Does it avoid unnecessary complexity, not just fewer lines?
+5. **Performance & Resources:** Is runtime and memory usage appropriate for the expected scale?
+6. **Security:** Does it avoid leaking secrets or introducing dangerous behaviors?
+7. **Testability:** Can the code be tested with controlled input and observable outputs?
 
-**导出格式**：
-- `Print PDF`：适合打印的学习报告（可在打印窗口保存为 PDF）
-- `Open HTML`：新标签页打开的可阅读 HTML 报告
+**Challenge design:**
 
-**报告内容**：学习概览、Topic 进度、能力地图、误解信号、下一步建议、最近练习证据等。
+The question set deliberately includes cases where longer code is clearer and cases where shorter code is better, preventing learners from equating quality with minimalist style. Coverage includes nested conditionals, collection query performance, sensitive logging, global dependency coupling, and redundant boolean branches.
 
----
+**Key behavior:**
 
-## 🔧 其他重要功能
-
-### Fill-in-the-blank gate（填空门）
-
-如果代码中出现 `___1___`、`___2___` 这样的占位符，**不需要在代码中手动删除**。
-
-请在 Code 下方、Run Timeline 上方的 **Fill-in-the-blank gate** 中填写答案。输入后代码会自动同步更新。
-
-> 注意：输入是 Python 代码片段。若答案是字符串，需自带引号，例如 `"Ada"`
-
-### Debug Detective 评测逻辑
-
-Level 5 不要求代码逐字一致，学生可用不同写法。只要 `Compile & Run` 后 trace 能证明：
-- 程序可顺利运行
-- 目标变量最终值正确
-- 不是直接写死答案
-- 运行过程体现了该题需要训练的概念（条件、循环、递归等）
-
-系统会给出详细反馈，如缺少的内置函数、参考答案、修复建议等。
-
-### 函数提示
-
-题目中出现 Python 内置函数时，系统自动显示函数提示，包括函数名、简短示例和用途说明。
+This module uses the same training workflow as AI Code Review: draft saving, pause/resume, attempt history, and restart are all supported.
 
 ---
 
-## 🚀 运行系统
+## Progress Tracking and Reporting
 
-### 环境要求
+### Dashboard and visualization
 
-系统需要 .NET 和 Python 3。打开 PowerShell 后可先确认：
+- **Practice Pattern Tree:** Shows learning progress in a tree structure from the start node to topics, levels, and individual challenges.
+- **Learning Tree:** Displays only the current and upcoming training content so the learner is not overwhelmed by the full question repository.
+
+### Export reports
+
+Use **Export Report** to choose the report scope and output format.
+
+**Report scope:**
+- `All Practice Topics`: generate a global learning report.
+- A single topic: generate a review report focused on that topic only.
+
+**Output formats:**
+- `Print PDF`: open a print-friendly report window; save as PDF from the browser print dialog.
+- `Open HTML`: open a readable HTML report in a new tab.
+
+**Report content:**
+
+Learning overview, topic progress, ability map, misconception signals, next-step suggestions, and recent practice evidence.
+
+---
+
+## Additional Features
+
+### Fill-in-the-blank gate
+
+If code contains placeholders like `___1___`, `___2___`, do not remove them manually from the code.
+
+Enter the answer in the **Fill-in-the-blank gate** below the code and above the Run Timeline. The code updates automatically after you fill in the expression.
+
+> Note: The input must be a Python code snippet. If the answer is a string, include quotes, for example:
+>
+> ```python
+> "Ada"
+> ```
+
+### Debug Detective evaluation logic
+
+Level 5 does not require exact code matching. Different implementations are acceptable if the result proves that:
+
+- the program runs successfully
+- the target variable ends with the correct value
+- the solution is not hard-coded to the answer
+- the execution trace demonstrates the intended concept (conditional, loop, recursion, etc.)
+
+The system provides detailed guidance when results are incorrect, such as missing built-ins, reference solutions, or specific fix suggestions.
+
+### Function hints
+
+When a challenge requires Python built-in functions, the platform automatically displays hints, including the function name, a short example, and its purpose.
+
+---
+
+## Running the System
+
+### Environment requirements
+
+The platform requires .NET 9 and Python 3. Verify them in PowerShell:
 
 ```powershell
 dotnet --version
 python --version
 ```
 
-如果 `python --version` 找不到 Python，也可试：
+If `python --version` is not available, use:
 
 ```powershell
 py -3 --version
 ```
 
-### 启动应用
+### Launch instructions
 
-在 **PowerShell terminal** 里输入：
+In a PowerShell terminal, run:
 
 ```powershell
 cd "D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem"
 dotnet run --urls "http://127.0.0.1:5057"
 ```
 
-然后**不要关掉这个 terminal**，让它继续运行。
+Keep the terminal open while the application is running.
 
-在 **Edge 地址栏** 里输入这个，**不是在 Edge 控制台里输入**：
+Open the app in the Edge address bar (do not type this in the console):
 
 ```text
 http://127.0.0.1:5057/?v=latest
 ```
 
-如果端口 `5057` 被占用了，就把 terminal 命令改成：
+If port `5057` is occupied, use a different port:
 
 ```powershell
 dotnet run --urls "http://127.0.0.1:5058"
 ```
 
-然后 Edge 里打开：
+Then open:
 
 ```text
 http://127.0.0.1:5058/?v=latest
 ```
 
-停止运行时，在 terminal 里按 `Ctrl+C`。
+Stop the application by pressing `Ctrl+C` in the terminal.
 
-### 常见问题
+### Common issue
 
-⚠️ **错误做法**：不要直接双击 `wwwroot/index.html`，也不要用 `file://.../index.html` 打开页面。这样只能看到静态界面，`Compile & Run` 无法连接后端，会出现 `Failed to fetch` 或类似错误。
+Do not open `wwwroot/index.html` directly or use `file://.../index.html`. That only loads a static page and prevents `Compile & Run` from connecting to the backend, causing `Failed to fetch` or similar errors.
 
-✅ **正确做法**：必须先运行上面的 `dotnet run`，再在 Edge 里打开 `http://127.0.0.1:5057/` 或对应端口。
+Start the app with `dotnet run` first, then open the app URL in Edge.

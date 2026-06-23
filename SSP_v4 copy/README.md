@@ -1,205 +1,88 @@
-# SSP v4 - 学习系统概览
+﻿# SSP v4
 
-SSP v4 是一个综合性编程学习平台，通过 **三大主要训练模块** 帮助学生系统地掌握程序设计。
+SSP v4 is a local education platform for programming practice, AI code review, and code quality training.
+This README is the main project documentation. For a deeper technical reference, see `README_technical.md`.
 
----
+## System Architecture
 
-## 📚 三大主要训练部分
+The solution consists of:
 
-### 1️⃣ Practice（第一阶段）- 基础编程训练
+- A .NET 9 web application under `LoopVisualizerSystem` that serves static frontend files and exposes REST API endpoints under `api/`.
+- A Python trace engine in `LoopVisualizerSystem/Engine/trace_engine.py` that executes submitted Python code, captures runtime traces, and returns JSON output.
+- Frontend assets in `LoopVisualizerSystem/wwwroot` that provide the user interface, send code to the backend, and render execution results.
 
-**目的**：让学生从零基础开始，按难度梯度逐步掌握编程概念和语言特性。
+The backend writes temporary Python files to the OS temp directory and runs them through the local Python interpreter.
 
-**使用流程**：
+## Main Training Modules
 
-1. 进入系统后，在 **Practice Topic** 中选择想要练习的知识点（如条件判断、循环、递归等）
-2. 系统自动加载该知识点当前批次的下一个关卡
-3. 按 **Level 1 到 Level 5** 顺序依次完成，每个 Level 采用递进式难度设计
-4. 每次完成代码后点击 **Compile & Run** 进行自动判断
-5. 通过该 Topic 的全部 Level 后，可选择刷新新题组或复习前一套
+### Practice
 
-**难度设计**：
+A structured coding practice module with topic-based challenges. Learners progress through levels 1 to 5, use the Fill-in-the-blank gate, and validate code with `Compile & Run`.
 
-- **Level 1**：缺少关键表达式或调用，在 Fill-in-the-blank gate 中填空
-- **Level 2**：缺少一行代码，需将占位符替换为有效 Python 代码
-- **Level 3**：较少提示，完整编写一段可运行代码
-- **Level 4**：重构冗杂代码，用目标算法进行优化和精炼
-- **Level 5**：修复错误代码，排查运行错误并确保逻辑正确
+### AI Code Review
 
-**关键功能**：
+A code inspection module where learners read AI-generated solutions, identify real defects, select diagnostic tests, and propose fixes.
 
-- **Practice Path**：在当前题下方显示操作清单，告诉学生在哪填代码、需要补什么类型、什么时候运行、如何判断通过
-- **Question Bank**：查看完整题库，按 Topic 和 Level 展示所有题目，标注所属题集（Set 1-5）和完成状态
-- **Dashboard**：以视觉化树形图展示学习进度。题目完成时点亮对应节点，完整 Topic 完成时点亮主节点
-- **题集循环**：每个 Topic 至少提供 5 套完整题组，学生可反复训练不同路径，完成后进入复习循环
+### Code Quality Check
 
----
+A quality review module where learners compare two implementations, evaluate them across several dimensions, and justify the better design.
 
-### 2️⃣ AI Code Review（第二阶段）- 代码审查与问题诊断训练
+## Dependencies
 
-**目的**：培养学生读懂 AI 生成的代码、判断真实问题、提出修复方案的能力。不要求从零手写，而是要求完成完整的工程判断链。
+- .NET 9 SDK
+- Python 3
+- `python` or `py -3` must be available in the system PATH
 
-**使用流程**：
+## Runtime Constraints
 
-1. 进入 `AI Code Review`，选择一个挑战题（共 10 个，分 Starter、Developing、Applied、Challenge 四个难度组）
-2. **阅读需求和工程约束**，理解代码应该做什么
-3. **识别代码问题**：判断 AI 生成代码中的真实缺陷，排除看似合理的错误说法
-4. **选择测试用例**：选择能覆盖正常情况和边界情况的测试，证明问题存在或验证修复
-5. **修复代码**：改正识别出的问题，用自己的语言解释缺陷、测试策略和修复理由
-6. 点击 **Evaluate Review & Fix**，系统真实运行测试并生成能力证据
+- This project is intended for local sandbox use only.
+- It is not designed for production deployment.
+- The backend executes submitted Python code directly, so the environment should be controlled.
 
-**问题覆盖范围**：
+## Getting Started
 
-空输入、负数假设、阈值边界、代码重复、语法与返回值契约、错误测试预期、集合顺序、异常处理过宽、时间复杂度问题、数据丢失等
-
-**训练闭环**：
-
-- **自动保存**：代码、诊断选择、测试选择和解释自动保存为草稿
-- **暂停继续**：`Save & Pause` 可临时返回 Practice，下次进入时恢复原位置
-- **历史复盘**：`Attempt History` 保存所有评测证据，可重新打开任一次进行复盘
-- **重新挑战**：`Start New Attempt` 从原始 AI 代码重新开始，不删除已取得的能力证据
-- **详细反馈**：每次失败会分别解释漏选问题、误选说法、缺失测试、无效测试、运行错误等
-- **智能答案**：连续 3 次失败后才显示参考修复和详细解释
-
-**评测标准**：
-
-系统接受满足需求的不同实现，不要求逐字一致。每题包含未直接展示的附加测试，防止只针对示例写死答案。环境问题（Python 缺失、服务中断）不计为学生失败。
-
----
-
-### 3️⃣ Code Quality Check（第三阶段）- 代码质量评审训练
-
-**目的**：教导学生"代码能运行之后，还应该如何判断质量"，超越简单的正确性，理解工程权衡。
-
-**使用流程**：
-
-1. 进入 `Code Quality Check`，选择一个质量挑战题（共 6 个）
-2. **对比两个版本**：Version A 和 Version B 都能实现同样功能，但代码风格和品质不同
-3. **七维度独立评判**：对两个版本分别从以下维度进行评估
-4. **选择最优方案**：根据工程情境，选择总体更好的版本
-5. **重构较弱版本**：尝试改进较弱的版本，将其优化为更好的代码
-6. **解释权衡理由**：用自己的语言说明为什么这个方案更优
-7. 点击 **Evaluate Quality Decision**，系统综合检查维度判断、隐藏测试、代码结构和书面解释
-
-**七个评判维度**：
-
-1. **Correctness**：是否满足完整需求和边界情况
-2. **Readability**：其他工程师能否快速理解代码意图
-3. **Maintainability**：需求变化时能否安全修改
-4. **Simplicity**：是否删除不必要的机制，而不仅仅追求最少行数
-5. **Performance & Resources**：时间和内存消耗是否适合预期规模
-6. **Security**：是否泄露秘密或引入危险行为
-7. **Testability**：测试能否有效控制输入并观察结果
-
-**题目特点**：
-
-题库刻意同时包含"较长代码更清楚"和"短代码更合理"的案例，防止学生误解质量评审只是追求最少行数。覆盖嵌套条件、集合查询性能、密码日志、全局依赖、冗余分支等常见质量问题。
-
-**功能特性**：
-
-与 AI Code Review 一致：支持草稿保存、暂停继续、历史复盘、重新挑战等完整训练闭环。
-
----
-
-## 🎯 学习报告与进度跟踪
-
-### Dashboard 和学习可视化
-
-- **Practice Pattern Tree**：以树形图展示学习进度，从初始节点出发连接到每个 Topic，再连接到各 Level，最后连接到具体题目
-- **Learning Tree**：记录学生学习状态，只展示当前和接下来的训练内容，不会铺开全量题库
-
-### 导出学习报告
-
-点击 **Export Report** 后，可选择导出范围和格式：
-
-**导出范围**：
-- `All Practice Topics`：生成全局学习报告
-- 单个 Topic：只生成该 Topic 各 Level 的复盘报告
-
-**导出格式**：
-- `Print PDF`：适合打印的学习报告（可在打印窗口保存为 PDF）
-- `Open HTML`：新标签页打开的可阅读 HTML 报告
-
-**报告内容**：学习概览、Topic 进度、能力地图、误解信号、下一步建议、最近练习证据等。
-
----
-
-## 🔧 其他重要功能
-
-### Fill-in-the-blank gate（填空门）
-
-如果代码中出现 `___1___`、`___2___` 这样的占位符，**不需要在代码中手动删除**。
-
-请在 Code 下方、Run Timeline 上方的 **Fill-in-the-blank gate** 中填写答案。输入后代码会自动同步更新。
-
-> 注意：输入是 Python 代码片段。若答案是字符串，需自带引号，例如 `"Ada"`
-
-### Debug Detective 评测逻辑
-
-Level 5 不要求代码逐字一致，学生可用不同写法。只要 `Compile & Run` 后 trace 能证明：
-- 程序可顺利运行
-- 目标变量最终值正确
-- 不是直接写死答案
-- 运行过程体现了该题需要训练的概念（条件、循环、递归等）
-
-系统会给出详细反馈，如缺少的内置函数、参考答案、修复建议等。
-
-### 函数提示
-
-题目中出现 Python 内置函数时，系统自动显示函数提示，包括函数名、简短示例和用途说明。
-
----
-
-## 🚀 运行系统
-
-### 环境要求
-
-系统需要 .NET 和 Python 3。打开 PowerShell 后可先确认：
+Open PowerShell and verify the runtime environment:
 
 ```powershell
 dotnet --version
 python --version
 ```
 
-如果 `python --version` 找不到 Python，也可试：
+If `python --version` is not available, verify Python with:
 
 ```powershell
 py -3 --version
 ```
 
-### 启动应用
-
-在 **PowerShell terminal** 里输入：
+Then run the application:
 
 ```powershell
 cd "D:\Desktop\test-SSP\SSP_v4\LoopVisualizerSystem"
 dotnet run --urls "http://127.0.0.1:5057"
 ```
 
-然后**不要关掉这个 terminal**，让它继续运行。
+Keep the terminal open while the application runs.
 
-在 **Edge 地址栏** 里输入这个，**不是在 Edge 控制台里输入**：
+Open the app in Edge using the browser address bar (not the console):
 
 ```text
 http://127.0.0.1:5057/?v=latest
 ```
 
-如果端口 `5057` 被占用了，就把 terminal 命令改成：
+If port `5057` is unavailable, use a different port:
 
 ```powershell
 dotnet run --urls "http://127.0.0.1:5058"
 ```
 
-然后 Edge 里打开：
+Then open:
 
 ```text
 http://127.0.0.1:5058/?v=latest
 ```
 
-停止运行时，在 terminal 里按 `Ctrl+C`。
+Stop the application by pressing `Ctrl+C` in the terminal.
 
-### 常见问题
+## Notes
 
-⚠️ **错误做法**：不要直接双击 `wwwroot/index.html`，也不要用 `file://.../index.html` 打开页面。这样只能看到静态界面，`Compile & Run` 无法连接后端，会出现 `Failed to fetch` 或类似错误。
-
-✅ **正确做法**：必须先运行上面的 `dotnet run`，再在 Edge 里打开 `http://127.0.0.1:5057/` 或对应端口。
+Do not open `wwwroot/index.html` directly or use `file://.../index.html`. That only loads a static page and prevents the frontend from connecting to the backend.

@@ -15,7 +15,8 @@ namespace LoopVisualizerSystem.Controllers
         [HttpGet("health")]
         public IActionResult Health()
         {
-            return Ok(GetPythonHealth());
+            var payload = GetPythonHealth();
+            return Content(JsonSerializer.Serialize(payload), "application/json");
         }
 
         [HttpPost("run")]
@@ -34,14 +35,12 @@ namespace LoopVisualizerSystem.Controllers
 
                 string jsonResult = RunTraceEngine(tempInputFile);
 
-                var options = new JsonSerializerOptions
+                var rawSteps = JsonSerializer.Deserialize<List<TelemetryStep>>(jsonResult, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
-                };
-
-                var rawSteps = JsonSerializer.Deserialize<List<TelemetryStep>>(jsonResult, options);
+                });
                 var compiledSteps = GenerateExplanations(rawSteps, request.Code);
-                return Ok(compiledSteps);
+                return Content(JsonSerializer.Serialize(compiledSteps), "application/json");
             }
             catch (Exception ex)
             {
@@ -74,7 +73,7 @@ namespace LoopVisualizerSystem.Controllers
             try
             {
                 System.IO.File.WriteAllText(tempInputFile, BuildReviewTestScript(request), Encoding.UTF8);
-                return Ok(RunReviewTestScript(tempInputFile));
+                return Content(JsonSerializer.Serialize(RunReviewTestScript(tempInputFile)), "application/json");
             }
             catch (Exception ex)
             {
@@ -203,10 +202,11 @@ namespace LoopVisualizerSystem.Controllers
         private static string RunTraceEngine(string tempInputFile)
         {
             var attempts = new List<string>();
+            string enginePath = Path.Combine(AppContext.BaseDirectory, "Engine", "trace_engine.py");
             var candidates = new[]
             {
-                new { FileName = "python", Arguments = $"Engine/trace_engine.py \"{tempInputFile}\"" },
-                new { FileName = "py", Arguments = $"-3 Engine/trace_engine.py \"{tempInputFile}\"" }
+                new { FileName = "python", Arguments = $"\"{enginePath}\" \"{tempInputFile}\"" },
+                new { FileName = "py", Arguments = $"-3 \"{enginePath}\" \"{tempInputFile}\"" }
             };
 
             foreach (var candidate in candidates)
