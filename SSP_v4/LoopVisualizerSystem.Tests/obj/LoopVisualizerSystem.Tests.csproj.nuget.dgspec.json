@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "d:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj": {}
+    "D:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj": {}
   },
   "projects": {
-    "d:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj": {
+    "D:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj",
+        "projectUniqueName": "D:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj",
         "projectName": "LoopVisualizerSystem.Tests",
-        "projectPath": "d:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj",
+        "projectPath": "D:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\LoopVisualizerSystem.Tests.csproj",
         "packagesPath": "C:\\Users\\ruiji\\.nuget\\packages\\",
-        "outputPath": "d:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\obj\\",
+        "outputPath": "D:\\Desktop\\test-SSP\\SSP_v4\\LoopVisualizerSystem.Tests\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

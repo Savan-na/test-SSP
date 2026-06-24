@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LoopVisualizerSystem.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e6669145f91c3e3191c6d7c0a897247eb495b386")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0f53590396c152fdfcd0608920b8c15486e9d0a1")]
 [assembly: System.Reflection.AssemblyProductAttribute("LoopVisualizerSystem.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LoopVisualizerSystem.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
